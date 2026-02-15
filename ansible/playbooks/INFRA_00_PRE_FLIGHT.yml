@@ -72,13 +72,14 @@
 
     - name: Reboot if required
       ansible.builtin.reboot:
-        reboot_timeout: 1800
         post_reboot_delay: 30
+        reboot_timeout: 1800
       register: reboot_result
       when: reboot_check.rc == 1
 
-    - name: Show active repositories after pre-flight
-      ansible.builtin.command: dnf repolist
+    - name: Capture active repositories after pre-flight
+      ansible.builtin.command:
+        cmd: dnf repolist
       register: repolist_out
       changed_when: false
 
