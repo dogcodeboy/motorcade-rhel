@@ -5,6 +5,14 @@
   gather_facts: true
 
   tasks:
+    - name: Disable subscription-manager DNF plugin
+      ansible.builtin.ini_file:
+        path: /etc/dnf/plugins/subscription-manager.conf
+        section: main
+        option: enabled
+        value: "0"
+        create: true
+        mode: "0644"
 
     - name: Remove non-RHUI redhat.repo (if present)
       ansible.builtin.file:
@@ -55,18 +63,14 @@
         name: podman
         state: present
 
-    - name: Check if reboot is required
-      ansible.builtin.command: dnf -q needs-restarting -r
-      register: reboot_check
-      failed_when: false
-      changed_when: false
-
-    - name: Reboot if required
+    - name: Reboot if kernel packages were updated
       ansible.builtin.reboot:
+        post_reboot_delay: 30
         reboot_timeout: 1800
-      when: reboot_check.rc != 0
+      when:
+        - update_result is changed
+        - (update_result.results | default([]) | selectattr('name', 'match', '^kernel') | list | length) > 0
 
-    - name: Wait 30 seconds after reboot
-      ansible.builtin.pause:
-        seconds: 30
-      when: reboot_check.rc != 0
+    - name: Show active repositories after pre-flight
+      ansible.builtin.command: dnf repolist
+      changed_when: false
