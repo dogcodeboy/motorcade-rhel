@@ -1,0 +1,61 @@
+---
+- name: INFRA_00_PRE_FLIGHT | RHEL RHUI + system baseline + podman
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    - name: Remove non-RHUI redhat.repo (if present)
+      ansible.builtin.file:
+        path: /etc/yum.repos.d/redhat.repo
+        state: absent
+
+    - name: Disable RHUI EUS repo file (avoid duplicates + 403s)
+      ansible.builtin.command:
+        cmd: mv -f /etc/yum.repos.d/redhat-rhui-eus.repo /etc/yum.repos.d/redhat-rhui-eus.repo.disabled
+      args:
+        removes: /etc/yum.repos.d/redhat-rhui-eus.repo
+      ignore_errors: true
+
+    - name: Ensure dnf-plugins-core installed
+      ansible.builtin.package:
+        name: dnf-plugins-core
+        state: present
+
+    - name: Disable RHUI extensions repos
+      ansible.builtin.command:
+        cmd: dnf config-manager --set-disabled 'rhel-10-extensions-rhui*'
+      ignore_errors: true
+      changed_when: false
+
+    - name: Clean DNF cache
+      ansible.builtin.command:
+        cmd: dnf clean all
+      changed_when: false
+
+    - name: Remove DNF cache directory
+      ansible.builtin.file:
+        path: /var/cache/dnf
+        state: absent
+
+    - name: Rebuild DNF cache
+      ansible.builtin.command:
+        cmd: dnf makecache
+      changed_when: false
+
+    - name: Update system packages
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      register: update_result
+
+    - name: Ensure Podman installed
+      ansible.builtin.package:
+        name: podman
+        state: present
+
+    - name: Reboot if kernel updated
+      ansible.builtin.reboot:
+        reboot_timeout: 1800
+      when: "'kernel' in update_result.results | map(attribute='name') | list | join(' ')"
