@@ -4,7 +4,17 @@
   become: true
   gather_facts: true
 
+  vars:
+    infra_fips_bake_mode: false
+
   tasks:
+    # FEDERAL-READY: Guardrail to prevent accidental execution on live systems.
+    - name: Require explicit bake mode confirmation
+      ansible.builtin.assert:
+        that:
+          - infra_fips_bake_mode | bool
+        fail_msg: Bake only; do not run on live prod.
+
     # FEDERAL-READY: FIPS should be enabled during image bake, then captured into
     # the AMI. Avoid treating this as a routine post-deploy toggle in production.
     - name: Ensure FIPS enablement packages are installed
