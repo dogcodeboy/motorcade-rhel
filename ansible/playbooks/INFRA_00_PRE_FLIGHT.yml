@@ -63,13 +63,22 @@
         name: podman
         state: present
 
-    - name: Reboot if kernel packages were updated
+    - name: Check whether reboot is required
+      ansible.builtin.command:
+        cmd: needs-restarting -r
+      register: reboot_check
+      failed_when: false
+      changed_when: false
+
+    - name: Reboot if required
       ansible.builtin.reboot:
-        post_reboot_delay: 30
         reboot_timeout: 1800
-      when:
-        - update_result is changed
-        - (update_result.results | default([]) | selectattr('name', 'match', '^kernel') | list | length) > 0
+      when: reboot_check.rc == 1
+
+    - name: Mandatory 30 second stabilization delay
+      ansible.builtin.pause:
+        seconds: 30
+      when: reboot_check.rc == 1
 
     - name: Show active repositories after pre-flight
       ansible.builtin.command: dnf repolist
