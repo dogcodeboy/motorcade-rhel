@@ -53,12 +53,8 @@
     - name: Reboot host after enabling FIPS
       ansible.builtin.reboot:
         msg: Reboot required after FIPS enablement
+        post_reboot_delay: 30
         reboot_timeout: 1800
-      when: infra_fips_kernel_state.stdout | trim != "1"
-
-    - name: Wait 30 seconds after reboot
-      ansible.builtin.pause:
-        seconds: 30
       when: infra_fips_kernel_state.stdout | trim != "1"
 
     # FEDERAL-READY: Validate state after reboot to fail fast during bake.

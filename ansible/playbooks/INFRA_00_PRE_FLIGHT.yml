@@ -52,31 +52,6 @@
         cmd: dnf makecache
       changed_when: false
 
-    - name: Update system packages
-      ansible.builtin.dnf:
-        name: "*"
-        state: latest
-      register: update_result
-
-    - name: Ensure Podman installed
-      ansible.builtin.package:
-        name: podman
-        state: present
-
-    - name: Check whether reboot is required
-      ansible.builtin.command:
-        cmd: needs-restarting -r
-      register: reboot_check
-      failed_when: false
-      changed_when: false
-
-    - name: Reboot if required
-      ansible.builtin.reboot:
-        post_reboot_delay: 30
-        reboot_timeout: 1800
-      register: reboot_result
-      when: reboot_check.rc == 1
-
     - name: Capture active repositories after pre-flight
       ansible.builtin.command:
         cmd: dnf repolist

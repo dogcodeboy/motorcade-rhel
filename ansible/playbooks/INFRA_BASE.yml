@@ -1,9 +1,10 @@
 ---
 # FEDERAL-READY: AMI bake baseline only (no service containers).
-# Goal: reach "RHUI clean + fully updated + FIPS + Podman + hardening", then bake AMI.
+# Goal: RHUI clean + updated + FIPS + Podman runtime + hardening + CAC readiness.
 
 - import_playbook: INFRA_00_PRE_FLIGHT.yml
 - import_playbook: INFRA_00_fips_enable.yml
 - import_playbook: INFRA_01_os_update.yml
 - import_playbook: INFRA_02_podman_runtime.yml
 - import_playbook: INFRA_06_security_baseline.yml
+- import_playbook: INFRA_07_cac_smartcard.yml
