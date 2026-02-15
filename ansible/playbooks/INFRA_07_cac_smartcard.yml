@@ -1,0 +1,47 @@
+---
+- name: INFRA_07 | CAC smartcard readiness (no auth enforcement)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  vars:
+    motorcade_enable_smartcard_auth: false
+
+  tasks:
+    - name: Install smartcard support packages (best effort)
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - pcsc-lite
+        - pcsc-lite-ccid
+        - opensc
+        - opensc-pkcs11
+        - sssd
+        - pam_pkcs11
+      register: smartcard_pkg_install
+      failed_when: false
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Enable and start pcscd
+      ansible.builtin.systemd:
+        name: pcscd
+        enabled: true
+        state: started
+      when: "'pcscd.service' in ansible_facts.services"
+
+    - name: List detected smartcard readers
+      ansible.builtin.command:
+        cmd: opensc-tool -l
+      register: opensc_tool_out
+      failed_when: false
+      changed_when: false
+
+    - name: Report CAC readiness state
+      ansible.builtin.debug:
+        msg:
+          - "motorcade_enable_smartcard_auth={{ motorcade_enable_smartcard_auth }}"
+          - "pcscd_present={{ 'pcscd.service' in ansible_facts.services }}"
+          - "opensc_tool_rc={{ opensc_tool_out.rc }}"

@@ -73,13 +73,18 @@
     - name: Reboot if required
       ansible.builtin.reboot:
         reboot_timeout: 1800
-      when: reboot_check.rc == 1
-
-    - name: Mandatory 30 second stabilization delay
-      ansible.builtin.pause:
-        seconds: 30
+        post_reboot_delay: 30
+      register: reboot_result
       when: reboot_check.rc == 1
 
     - name: Show active repositories after pre-flight
       ansible.builtin.command: dnf repolist
+      register: repolist_out
       changed_when: false
+
+    - name: Assert non-RHUI CDN repos are not active
+      ansible.builtin.assert:
+        that:
+          - "'rhel-10-for-x86_64-baseos-rpms' not in repolist_out.stdout"
+          - "'rhel-10-for-x86_64-appstream-rpms' not in repolist_out.stdout"
+        fail_msg: Non-RHUI CDN repos detected in dnf repolist output.
