@@ -1,0 +1,68 @@
+---
+- name: INFRA_00 | Enable FIPS mode (AMI bake only)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  tasks:
+    # FEDERAL-READY: FIPS should be enabled during image bake, then captured into
+    # the AMI. Avoid treating this as a routine post-deploy toggle in production.
+    - name: Ensure FIPS enablement packages are installed
+      ansible.builtin.package:
+        name:
+          - dracut-fips
+          - dracut-fips-aesni
+        state: present
+
+    # FEDERAL-READY: Read current kernel FIPS switch to keep this idempotent and
+    # avoid unnecessary reboot/initramfs rebuild when already enabled.
+    - name: Check kernel FIPS state
+      ansible.builtin.command:
+        cmd: cat /proc/sys/crypto/fips_enabled
+      register: infra_fips_kernel_state
+      changed_when: false
+
+    # FEDERAL-READY: This is the canonical RHEL mechanism for enabling FIPS mode.
+    - name: Enable FIPS mode
+      ansible.builtin.command:
+        cmd: fips-mode-setup --enable
+      register: infra_fips_enable
+      when: infra_fips_kernel_state.stdout | trim != "1"
+      changed_when: true
+
+    # FEDERAL-READY: Be explicit about regenerating initramfs for FIPS-enabled
+    # boot artifacts before AMI capture.
+    - name: Rebuild initramfs after enabling FIPS
+      ansible.builtin.command:
+        cmd: dracut -f
+      when: infra_fips_kernel_state.stdout | trim != "1"
+      changed_when: true
+
+    # FEDERAL-READY: FIPS activation requires reboot and should be completed
+    # as part of bake pipeline prior to creating downstream instances.
+    - name: Reboot host after enabling FIPS
+      ansible.builtin.reboot:
+        msg: Reboot required after FIPS enablement
+        reboot_timeout: 1800
+      when: infra_fips_kernel_state.stdout | trim != "1"
+
+    # FEDERAL-READY: Validate state after reboot to fail fast during bake.
+    - name: Check fips-mode-setup state
+      ansible.builtin.command:
+        cmd: fips-mode-setup --check
+      register: infra_fips_check
+      changed_when: false
+
+    - name: Re-read kernel FIPS state after enablement
+      ansible.builtin.command:
+        cmd: cat /proc/sys/crypto/fips_enabled
+      register: infra_fips_kernel_state_post
+      changed_when: false
+
+    - name: Assert FIPS mode is active
+      ansible.builtin.assert:
+        that:
+          - infra_fips_kernel_state_post.stdout | trim == "1"
+        fail_msg: >-
+          FIPS mode is not active. fips-mode-setup output:
+          {{ infra_fips_check.stdout | default('') }}
