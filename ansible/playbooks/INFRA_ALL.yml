@@ -3,4 +3,5 @@
 - import_playbook: INFRA_00_fips_enable.yml
 - import_playbook: INFRA_01_os_update.yml
 - import_playbook: INFRA_02_podman_runtime.yml
+- import_playbook: INFRA_06_security_baseline.yml
 - import_playbook: INFRA_03_nginx_container.yml

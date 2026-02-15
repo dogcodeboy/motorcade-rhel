@@ -1,0 +1,86 @@
+---
+- name: INFRA_06 | Security baseline hooks
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  vars:
+    infra_security_baseline_services:
+      - chronyd
+      - auditd
+      - firewalld
+    infra_security_baseline_allowed_services:
+      - ssh
+      - http
+      - https
+    infra_security_ssh_hardening_enable: false
+
+  tasks:
+    # FEDERAL-READY: baseline control families (audit/time/selinux/scap)
+    - name: Ensure baseline security packages are installed
+      ansible.builtin.package:
+        name:
+          - chrony
+          - audit
+          - firewalld
+          - scap-security-guide
+        state: present
+
+    # FEDERAL-READY: keep SELinux in enforcing mode for baseline posture.
+    - name: Check SELinux runtime state
+      ansible.builtin.command:
+        cmd: getenforce
+      register: infra_security_selinux_runtime
+      changed_when: false
+
+    - name: Set SELinux runtime to enforcing
+      ansible.builtin.command:
+        cmd: setenforce 1
+      when: infra_security_selinux_runtime.stdout | lower != "enforcing"
+      changed_when: true
+
+    - name: Persist SELinux enforcing mode
+      ansible.builtin.lineinfile:
+        path: /etc/selinux/config
+        regexp: "^SELINUX="
+        line: "SELINUX=enforcing"
+        backup: true
+
+    # FEDERAL-READY: maintain reliable time sync + auditable logging.
+    - name: Ensure baseline security services are enabled and running
+      ansible.builtin.service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop: "{{ infra_security_baseline_services }}"
+
+    # FEDERAL-READY: explicitly allow only baseline ingress services.
+    - name: Ensure allowed firewalld services are enabled
+      ansible.posix.firewalld:
+        service: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: "{{ infra_security_baseline_allowed_services }}"
+
+    # FEDERAL-READY: SSH hardening hooks are present but opt-in to avoid lockout.
+    - name: Install SSH baseline hardening drop-in
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/60-fed-baseline.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          PasswordAuthentication no
+          PermitRootLogin no
+          KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512
+          Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+          MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+      when: infra_security_ssh_hardening_enable | bool
+      notify: Restart sshd
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
