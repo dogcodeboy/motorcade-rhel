@@ -1,0 +1,10 @@
+---
+# FEDERAL-READY: Minimal image bake stack only.
+# This playbook builds the AMI baseline.
+# No containers beyond runtime baseline.
+
+- import_playbook: INFRA_00_PRE_FLIGHT.yml
+- import_playbook: INFRA_00_fips_enable.yml
+- import_playbook: INFRA_01_os_update.yml
+- import_playbook: INFRA_02_podman_runtime.yml
+- import_playbook: INFRA_06_security_baseline.yml
