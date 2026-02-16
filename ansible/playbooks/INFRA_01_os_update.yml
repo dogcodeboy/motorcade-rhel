@@ -1,0 +1,9 @@
+---
+- name: INFRA_01 | OS update + baseline packages (bake lane only)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+  vars:
+    motorcade_common_base_patching_enabled: true
+  roles:
+    - role: motorcade_common_base

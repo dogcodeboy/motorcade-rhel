@@ -1,0 +1,68 @@
+---
+- name: INFRA_02 | Podman runtime validation (instance lane)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  vars:
+    motorcade_required_dirs:
+      - /srv/motorcade
+      - /srv/motorcade/volumes
+      - /srv/motorcade/config
+
+  tasks:
+    - name: Check preferred Podman binary path
+      ansible.builtin.stat:
+        path: /usr/local/bin/podman
+      register: motorcade_podman_local
+      tags: [validate]
+
+    - name: Check fallback Podman binary path
+      ansible.builtin.stat:
+        path: /usr/bin/podman
+      register: motorcade_podman_usr
+      tags: [validate]
+
+    - name: Resolve Podman binary path
+      ansible.builtin.set_fact:
+        motorcade_podman_bin: >-
+          {{ '/usr/local/bin/podman' if motorcade_podman_local.stat.exists else
+             ('/usr/bin/podman' if motorcade_podman_usr.stat.exists else '') }}
+      tags: [validate]
+
+    - name: Assert Podman is present from baked image
+      ansible.builtin.assert:
+        that:
+          - motorcade_podman_bin | length > 0
+        fail_msg: Podman binary not found. Rebake image with Podman runtime installed.
+      tags: [validate]
+
+    - name: Validate Podman binary works
+      ansible.builtin.command:
+        cmd: "{{ motorcade_podman_bin }} --version"
+      changed_when: false
+      tags: [validate]
+
+    - name: Check required Motorcade directories
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ motorcade_required_dirs }}"
+      register: motorcade_dir_stats
+      tags: [validate]
+
+    - name: Assert required directories are present
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "Required baked directory missing: {{ item.stat.path }}. Rebake image."
+      loop: "{{ motorcade_dir_stats.results }}"
+      tags: [validate]
+
+    - name: Ensure quadlet directory exists for ec2-user
+      ansible.builtin.file:
+        path: /home/ec2-user/.config/containers/systemd
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: "0755"

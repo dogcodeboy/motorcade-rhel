@@ -16,15 +16,18 @@
     infra_security_ssh_hardening_enable: false
 
   tasks:
-    # FEDERAL-READY: baseline control families (audit/time/selinux/scap)
-    - name: Ensure baseline security packages are installed
-      ansible.builtin.package:
-        name:
-          - chrony
-          - audit
-          - firewalld
-          - scap-security-guide
-        state: present
+    # FEDERAL-READY: instance lane validates baked prerequisites instead of
+    # installing packages.
+    - name: Gather service facts for baked baseline validation
+      ansible.builtin.service_facts:
+
+    - name: Assert baseline services exist from baked image
+      ansible.builtin.assert:
+        that:
+          - item + '.service' in ansible_facts.services
+        fail_msg: "Required service {{ item }} missing. Rebake image with baseline packages."
+      loop: "{{ infra_security_baseline_services }}"
+      tags: [validate]
 
     # FEDERAL-READY: keep SELinux in enforcing mode for baseline posture.
     - name: Check SELinux runtime state
