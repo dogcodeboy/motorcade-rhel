@@ -16,6 +16,10 @@ nginx_https_port: 443
 keycloak_bind_host: 127.0.0.1
 keycloak_http_port: 8080
 
+# Keycloak RDS / Secrets Manager wiring for prod
+keycloak_db_host: "motorcade-prod-db-01.cdcs4864s0l0.us-east-2.rds.amazonaws.com"
+keycloak_db_secret_arn: "arn:aws:secretsmanager:us-east-2:703671899211:secret:rds!db-30cc9705-6861-4d27-bdd3-a2d3817739b8-Gu1GDf"
+
 # Podman install is non-standard in this environment; enumerate trusted paths.
 podman_bin_candidates:
   - /usr/local/bin/podman
