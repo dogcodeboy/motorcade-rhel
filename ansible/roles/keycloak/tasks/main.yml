@@ -15,7 +15,7 @@
       - keycloak_hostname | trim | length > 0
       - keycloak_admin_user | trim | length > 0
       - keycloak_admin_password | trim | length > 0
-    fail_msg: "Missing required Keycloak vars (DB host/name/user/secret ARN, hostname, or admin credentials)."
+    fail_msg: "Missing required Keycloak vars (DB host/name/user/secret ARN, hostname, or admin secret ARN)."
 
 - name: Check Podman candidate paths
   ansible.builtin.stat:
@@ -87,6 +87,35 @@
   changed_when: false
   no_log: true
 
+- name: Fetch Keycloak admin secret JSON from Secrets Manager
+  ansible.builtin.command:
+    cmd: >-
+      aws secretsmanager get-secret-value --secret-id {{ keycloak_admin_secret_arn }}
+      --query SecretString --output text
+  register: keycloak_admin_secret_raw
+  changed_when: false
+  no_log: true
+
+- name: Parse Keycloak admin secret JSON
+  ansible.builtin.set_fact:
+    keycloak_admin_secret: "{{ keycloak_admin_secret_raw.stdout | from_json }}"
+  changed_when: false
+  no_log: true
+
+- name: Resolve Keycloak admin creds from secret
+  ansible.builtin.set_fact:
+    keycloak_admin_user_effective: "{{ keycloak_admin_secret.username | default('') }}"
+    keycloak_admin_password_effective: "{{ keycloak_admin_secret.password | default('') }}"
+  changed_when: false
+  no_log: true
+
+- name: Assert Keycloak admin creds are present in secret
+  ansible.builtin.assert:
+    that:
+      - keycloak_admin_user_effective | length > 0
+      - keycloak_admin_password_effective | length > 0
+    fail_msg: "Keycloak admin secret must include non-empty username and password."
+
 - name: Resolve Keycloak DB credentials from secret
   ansible.builtin.set_fact:
     keycloak_db_username: "{{ keycloak_db_secret.username | default(keycloak_db_user) }}"
@@ -131,8 +160,8 @@
       --memory 1g
       -p 127.0.0.1:8081:8080
       --env-file {{ keycloak_runtime_dir }}/db.env
-      -e KEYCLOAK_ADMIN={{ keycloak_admin_user }}
-      -e KEYCLOAK_ADMIN_PASSWORD={{ keycloak_admin_password }}
+      -e KEYCLOAK_ADMIN={{ keycloak_admin_user_effective }}
+      -e KEYCLOAK_ADMIN_PASSWORD={{ keycloak_admin_password_effective }}
       -e KC_DB=postgres
       -e KC_DB_URL_HOST={{ keycloak_db_host }}
       -e KC_DB_URL_PORT={{ keycloak_db_port }}

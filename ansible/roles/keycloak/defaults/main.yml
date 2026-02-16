@@ -26,3 +26,6 @@ keycloak_audit_dir: /srv/motorcade/audit
 podman_bin_candidates:
   - /usr/local/bin/podman
   - /usr/bin/podman
+
+# Secrets Manager ARN containing Keycloak admin JSON: {"username":"...","password":"..."}
+keycloak_admin_secret_arn: ""
