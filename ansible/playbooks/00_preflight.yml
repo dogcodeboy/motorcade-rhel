@@ -1,6 +1,79 @@
 ---
-- name: Preflight (placeholder)
+- name: Preflight validations (instance-safe)
   hosts: all
   become: true
   gather_facts: true
-  tasks: []
+
+  vars:
+    motorcade_required_dirs:
+      - /srv/motorcade
+      - /srv/motorcade/volumes
+      - /srv/motorcade/config
+
+  tasks:
+    - name: Check SELinux runtime state
+      ansible.builtin.command:
+        cmd: getenforce
+      register: motorcade_selinux_state
+      changed_when: false
+
+    - name: Assert SELinux is enforcing
+      ansible.builtin.assert:
+        that:
+          - motorcade_selinux_state.stdout | trim | lower == "enforcing"
+        fail_msg: SELinux is not enforcing. Rebuild image with hardened baseline.
+
+    - name: Read kernel FIPS mode
+      ansible.builtin.command:
+        cmd: cat /proc/sys/crypto/fips_enabled
+      register: motorcade_fips_state
+      changed_when: false
+
+    - name: Assert FIPS mode is enabled
+      ansible.builtin.assert:
+        that:
+          - motorcade_fips_state.stdout | trim == "1"
+        fail_msg: FIPS is not enabled. Rebuild image with FIPS mode enabled.
+
+    - name: Check Podman candidate paths
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ podman_bin_candidates }}"
+      register: motorcade_podman_candidates
+
+    - name: Resolve Podman binary path
+      ansible.builtin.set_fact:
+        motorcade_podman_bin: >-
+          {{
+            (motorcade_podman_candidates.results
+            | selectattr('stat.exists')
+            | map(attribute='stat.path')
+            | list
+            | first) | default('')
+          }}
+      changed_when: false
+
+    - name: Assert Podman binary exists
+      ansible.builtin.assert:
+        that:
+          - motorcade_podman_bin | length > 0
+        fail_msg: Podman binary not found. Rebuild image with Podman installed.
+
+    - name: Validate Podman binary
+      ansible.builtin.command:
+        cmd: "{{ motorcade_podman_bin }} --version"
+      changed_when: false
+
+    - name: Check required directories
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ motorcade_required_dirs }}"
+      register: motorcade_required_dir_stats
+
+    - name: Assert required directories exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "Required directory missing: {{ item.stat.path }}. Rebuild image baseline."
+      loop: "{{ motorcade_required_dir_stats.results }}"
