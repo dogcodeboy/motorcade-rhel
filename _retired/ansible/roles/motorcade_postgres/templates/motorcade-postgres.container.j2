@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Container]
 ContainerName=motorcade-postgres
-Image={{ postgres_image }}
+Image={{ legacy_pg_image }}
 Pull=newer
 PublishPort={{ postgres_bind_host }}:{{ postgres_port }}:5432
 Environment=POSTGRES_PASSWORD={{ vault_postgres_password }}
