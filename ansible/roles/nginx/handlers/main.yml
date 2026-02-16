@@ -1,2 +1,5 @@
 ---
-# Implemented in subsequent steps.
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
