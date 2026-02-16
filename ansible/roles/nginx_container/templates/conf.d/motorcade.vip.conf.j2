@@ -1,0 +1,21 @@
+server {
+  listen {{ motorcade_nginx_container_http }};
+  server_name motorcade.vip;
+
+  location /healthz { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; }
+  location / { return 301 https://$host$request_uri; }
+}
+
+server {
+  listen {{ motorcade_nginx_container_https }} ssl;
+  server_name motorcade.vip;
+
+  ssl_certificate     /etc/nginx/certs/motorcade.vip.crt;
+  ssl_certificate_key /etc/nginx/certs/motorcade.vip.key;
+
+  include /etc/nginx/snippets/ssl_params.conf;
+  include /etc/nginx/snippets/security_headers.conf;
+
+  location /healthz { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; }
+  location / { return 404; }
+}

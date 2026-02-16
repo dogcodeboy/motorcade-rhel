@@ -1,0 +1,22 @@
+---
+# NGINX container image (pin to a known tag; later we’ll pin by digest)
+motorcade_nginx_image: "docker.io/library/nginx:1.27.4"
+
+# Host bind ports
+motorcade_nginx_bind_http: "0.0.0.0:80"
+motorcade_nginx_bind_https: "0.0.0.0:443"
+
+# Container internal ports
+motorcade_nginx_container_http: 8080
+motorcade_nginx_container_https: 8443
+
+# Certificates live on host (mounted read-only into container)
+motorcade_nginx_tls_cert_dir: "/etc/pki/tls/motorcade"
+
+# Domains required
+motorcade_nginx_domains:
+  - "motorcade.vip"
+  - "sso.motorcade.vip"
+
+# Where to store auditable artifacts
+motorcade_audit_dir: "/srv/motorcade/audit"

@@ -1,0 +1,28 @@
+server {
+  listen {{ motorcade_nginx_container_http }};
+  server_name sso.motorcade.vip;
+
+  location /healthz { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; }
+  location / { return 301 https://$host$request_uri; }
+}
+
+server {
+  listen {{ motorcade_nginx_container_https }} ssl;
+  server_name sso.motorcade.vip;
+
+  ssl_certificate     /etc/nginx/certs/sso.motorcade.vip.crt;
+  ssl_certificate_key /etc/nginx/certs/sso.motorcade.vip.key;
+
+  include /etc/nginx/snippets/ssl_params.conf;
+  include /etc/nginx/snippets/security_headers.conf;
+
+  location / {
+    proxy_pass http://127.0.0.1:8081;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+  }
+}

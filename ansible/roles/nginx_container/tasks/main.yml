@@ -1,0 +1,128 @@
+---
+- name: Assert required nginx container vars
+  ansible.builtin.assert:
+    that:
+      - motorcade_nginx_tls_cert_dir | length > 0
+      - motorcade_nginx_domains | select('match','^motorcade\\.vip$') | list | length == 1
+      - motorcade_nginx_domains | select('match','^sso\\.motorcade\\.vip$') | list | length == 1
+    fail_msg: "Missing required vars: motorcade_nginx_domains and/or motorcade_nginx_tls_cert_dir."
+
+- name: Ensure audit directory exists
+  ansible.builtin.file:
+    path: "{{ motorcade_audit_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Ensure nginx cert directory exists (host-side)
+  ansible.builtin.file:
+    path: "{{ motorcade_nginx_tls_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Verify required cert/key files exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ motorcade_nginx_tls_cert_dir }}/motorcade.vip.crt"
+    - "{{ motorcade_nginx_tls_cert_dir }}/motorcade.vip.key"
+    - "{{ motorcade_nginx_tls_cert_dir }}/sso.motorcade.vip.crt"
+    - "{{ motorcade_nginx_tls_cert_dir }}/sso.motorcade.vip.key"
+  register: cert_stats
+
+- name: Fail if any TLS asset is missing
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Missing TLS file: {{ item.stat.path }}"
+  loop: "{{ cert_stats.results }}"
+
+- name: Ensure podman exists
+  ansible.builtin.command: { cmd: "command -v podman" }
+  register: podman_path
+  changed_when: false
+
+- name: Set podman bin
+  ansible.builtin.set_fact:
+    podman_bin: "{{ podman_path.stdout | trim }}"
+  changed_when: false
+
+- name: Create rendered nginx config staging dir
+  ansible.builtin.file:
+    path: /etc/motorcade/nginx
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render nginx.conf
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/motorcade/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render snippets
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/motorcade/nginx/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: "snippets/ssl_params.conf.j2", dest: "ssl_params.conf" }
+    - { src: "snippets/security_headers.conf.j2", dest: "security_headers.conf" }
+
+- name: Render vhosts
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/motorcade/nginx/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: "conf.d/motorcade.vip.conf.j2", dest: "motorcade.vip.conf" }
+    - { src: "conf.d/sso.motorcade.vip.conf.j2", dest: "sso.motorcade.vip.conf" }
+
+- name: Remove existing nginx container (idempotent recreate)
+  ansible.builtin.command:
+    cmd: "{{ podman_bin }} rm -f motorcade-nginx"
+  failed_when: false
+  changed_when: false
+
+- name: Run nginx container (host networking binds 80/443)
+  ansible.builtin.command:
+    cmd: >-
+      {{ podman_bin }} run -d --name motorcade-nginx
+      --read-only
+      --cap-drop=ALL
+      --security-opt=no-new-privileges
+      -p {{ motorcade_nginx_bind_http }}:{{ motorcade_nginx_container_http }}
+      -p {{ motorcade_nginx_bind_https }}:{{ motorcade_nginx_container_https }}
+      -v /etc/motorcade/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+      -v /etc/motorcade/nginx/ssl_params.conf:/etc/nginx/snippets/ssl_params.conf:ro,Z
+      -v /etc/motorcade/nginx/security_headers.conf:/etc/nginx/snippets/security_headers.conf:ro,Z
+      -v /etc/motorcade/nginx/motorcade.vip.conf:/etc/nginx/conf.d/motorcade.vip.conf:ro,Z
+      -v /etc/motorcade/nginx/sso.motorcade.vip.conf:/etc/nginx/conf.d/sso.motorcade.vip.conf:ro,Z
+      -v {{ motorcade_nginx_tls_cert_dir }}:/etc/nginx/certs:ro,Z
+      {{ motorcade_nginx_image }}
+  register: nginx_run
+  changed_when: true
+
+- name: Capture nginx image + container inspect for audit
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ podman_bin }} image inspect {{ motorcade_nginx_image }} > {{ motorcade_audit_dir }}/nginx_image_inspect.json
+    {{ podman_bin }} inspect motorcade-nginx > {{ motorcade_audit_dir }}/nginx_container_inspect.json
+  changed_when: true
+
+- name: Health check nginx inside container via host port 80
+  ansible.builtin.uri:
+    url: "http://127.0.0.1/healthz"
+    return_content: true
+  register: healthz
+  failed_when: healthz.status != 200
