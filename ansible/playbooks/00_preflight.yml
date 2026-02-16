@@ -64,16 +64,20 @@
         cmd: "{{ motorcade_podman_bin }} --version"
       changed_when: false
 
-    - name: Check required directories
+    - name: Check required directories exist
       ansible.builtin.stat:
         path: "{{ item }}"
-      loop: "{{ motorcade_required_dirs }}"
+      loop:
+        - /srv/motorcade
+        - /srv/motorcade/volumes
+        - /srv/motorcade/config
       register: motorcade_required_dir_stats
+      changed_when: false
 
     - name: Assert required directories exist
       ansible.builtin.assert:
         that:
           - item.stat.exists
           - item.stat.isdir
-        fail_msg: "Required directory missing: {{ item.stat.path }}. Rebuild image baseline."
+        fail_msg: "Missing or not-a-directory: {{ item.item }}"
       loop: "{{ motorcade_required_dir_stats.results }}"
