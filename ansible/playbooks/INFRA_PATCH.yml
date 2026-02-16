@@ -7,11 +7,9 @@
     motorcade_patching_enabled: false
 
   tasks:
-    - name: Require explicit patching enablement
-      ansible.builtin.assert:
-        that:
-          - motorcade_patching_enabled | bool
-        fail_msg: Patching is disabled by default. Set motorcade_patching_enabled=true for maintenance windows.
+    - name: Skip patching play unless explicitly enabled
+      ansible.builtin.meta: end_play
+      when: not motorcade_patching_enabled | bool
 
     - name: Update system packages
       ansible.builtin.dnf:
@@ -20,12 +18,35 @@
         update_cache: true
       register: motorcade_patch_result
 
+    - name: Check for needs-restarting command
+      ansible.builtin.command:
+        cmd: bash -lc 'command -v needs-restarting >/dev/null 2>&1'
+      register: motorcade_needs_restarting_present
+      changed_when: false
+      failed_when: false
+
     - name: Check whether reboot is required
       ansible.builtin.command:
         cmd: needs-restarting -r
       register: motorcade_patch_reboot_check
       failed_when: false
       changed_when: false
+      when: motorcade_needs_restarting_present.rc == 0
+
+    - name: Set reboot-required fact from needs-restarting
+      ansible.builtin.set_fact:
+        motorcade_reboot_required: "{{ motorcade_patch_reboot_check.rc == 1 }}"
+      when: motorcade_needs_restarting_present.rc == 0
+
+    - name: Set reboot-required fact when needs-restarting is missing
+      ansible.builtin.set_fact:
+        motorcade_reboot_required: false
+      when: motorcade_needs_restarting_present.rc != 0
+
+    - name: Inform when needs-restarting is unavailable
+      ansible.builtin.debug:
+        msg: needs-restarting is not installed; skipping reboot requirement detection.
+      when: motorcade_needs_restarting_present.rc != 0
 
     - name: Reboot if required
       ansible.builtin.reboot:
@@ -33,4 +54,4 @@
         post_reboot_delay: 30
       when:
         - not ansible_check_mode
-        - motorcade_patch_reboot_check.rc == 1
+        - motorcade_reboot_required | bool
