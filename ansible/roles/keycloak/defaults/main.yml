@@ -1,0 +1,22 @@
+---
+keycloak_network_name: motorcade-core
+
+keycloak_image: quay.io/keycloak/keycloak:24.0
+keycloak_container_name: motorcade-keycloak
+keycloak_bind_ip: 127.0.0.1
+keycloak_bind_port: 8081
+keycloak_container_port: 8080
+
+keycloak_admin_user: admin
+keycloak_admin_password: change-me
+
+keycloak_db_mode: container
+keycloak_db_host: ""
+keycloak_db_port: 5432
+keycloak_db_name: keycloak
+keycloak_db_user: keycloak
+keycloak_db_password: change-me
+
+keycloak_postgres_image: docker.io/library/postgres:16
+keycloak_postgres_container_name: motorcade-keycloak-db
+keycloak_postgres_volume: keycloak-pgdata

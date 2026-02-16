@@ -1,2 +1,148 @@
 ---
-# Implemented in subsequent steps.
+- name: Check Podman candidate paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ podman_bin_candidates }}"
+  register: keycloak_podman_candidates
+
+- name: Resolve Podman binary path
+  ansible.builtin.set_fact:
+    keycloak_podman_bin: >-
+      {{
+        (keycloak_podman_candidates.results
+        | selectattr('stat.exists')
+        | map(attribute='stat.path')
+        | list
+        | first) | default('')
+      }}
+  changed_when: false
+
+- name: Assert Podman is available
+  ansible.builtin.assert:
+    that:
+      - keycloak_podman_bin | length > 0
+    fail_msg: Podman is missing. Rebake the image with Podman installed.
+
+- name: Ensure Keycloak Podman network exists
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} network exists {{ keycloak_network_name }}"
+  register: keycloak_network_exists
+  failed_when: false
+  changed_when: false
+
+- name: Create Keycloak Podman network
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} network create {{ keycloak_network_name }}"
+  when: keycloak_network_exists.rc != 0
+
+- name: Ensure Keycloak database volume exists
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} volume exists {{ keycloak_postgres_volume }}"
+  register: keycloak_pg_volume_exists
+  failed_when: false
+  changed_when: false
+  when: keycloak_db_mode == 'container'
+
+- name: Create Keycloak database volume
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} volume create {{ keycloak_postgres_volume }}"
+  when:
+    - keycloak_db_mode == 'container'
+    - keycloak_pg_volume_exists.rc != 0
+
+- name: Check Keycloak database container presence
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} container exists {{ keycloak_postgres_container_name }}"
+  register: keycloak_pg_container_exists
+  failed_when: false
+  changed_when: false
+  when: keycloak_db_mode == 'container'
+
+- name: Create Keycloak database container
+  ansible.builtin.command:
+    cmd: >-
+      {{ keycloak_podman_bin }} run -d
+      --name {{ keycloak_postgres_container_name }}
+      --network {{ keycloak_network_name }}
+      --volume {{ keycloak_postgres_volume }}:/var/lib/postgresql/data:Z
+      -e POSTGRES_DB={{ keycloak_db_name }}
+      -e POSTGRES_USER={{ keycloak_db_user }}
+      -e POSTGRES_PASSWORD={{ keycloak_db_password }}
+      {{ keycloak_postgres_image }}
+  when:
+    - keycloak_db_mode == 'container'
+    - keycloak_pg_container_exists.rc != 0
+
+- name: Inspect Keycloak database container running state
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} inspect -f {{ '{{.State.Running}}' }} {{ keycloak_postgres_container_name }}"
+  register: keycloak_pg_running
+  failed_when: false
+  changed_when: false
+  when:
+    - keycloak_db_mode == 'container'
+    - keycloak_pg_container_exists.rc == 0
+
+- name: Start Keycloak database container if stopped
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} start {{ keycloak_postgres_container_name }}"
+  when:
+    - keycloak_db_mode == 'container'
+    - keycloak_pg_container_exists.rc == 0
+    - keycloak_pg_running.stdout | trim != 'true'
+
+- name: Resolve Keycloak database host
+  ansible.builtin.set_fact:
+    keycloak_db_host_effective: >-
+      {{ keycloak_postgres_container_name if keycloak_db_mode == 'container' else keycloak_db_host }}
+  changed_when: false
+
+- name: Assert external database host is provided in RDS mode
+  ansible.builtin.assert:
+    that:
+      - keycloak_db_host_effective | length > 0
+    fail_msg: keycloak_db_host must be set when keycloak_db_mode is not container.
+
+- name: Check Keycloak container presence
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} container exists {{ keycloak_container_name }}"
+  register: keycloak_container_exists
+  failed_when: false
+  changed_when: false
+
+- name: Create Keycloak container
+  ansible.builtin.command:
+    cmd: >-
+      {{ keycloak_podman_bin }} run -d
+      --name {{ keycloak_container_name }}
+      --network {{ keycloak_network_name }}
+      -p {{ keycloak_bind_ip }}:{{ keycloak_bind_port }}:{{ keycloak_container_port }}
+      -e KEYCLOAK_ADMIN={{ keycloak_admin_user }}
+      -e KEYCLOAK_ADMIN_PASSWORD={{ keycloak_admin_password }}
+      -e KC_DB=postgres
+      -e KC_DB_URL_HOST={{ keycloak_db_host_effective }}
+      -e KC_DB_URL_PORT={{ keycloak_db_port }}
+      -e KC_DB_URL_DATABASE={{ keycloak_db_name }}
+      -e KC_DB_USERNAME={{ keycloak_db_user }}
+      -e KC_DB_PASSWORD={{ keycloak_db_password }}
+      -e KC_PROXY=edge
+      -e KC_HOSTNAME_STRICT={{ keycloak_hostname_strict | ternary('true', 'false') }}
+      {{ keycloak_image }}
+      start
+      --optimized
+  when: keycloak_container_exists.rc != 0
+
+- name: Inspect Keycloak container running state
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} inspect -f {{ '{{.State.Running}}' }} {{ keycloak_container_name }}"
+  register: keycloak_running
+  failed_when: false
+  changed_when: false
+  when: keycloak_container_exists.rc == 0
+
+- name: Start Keycloak container if stopped
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} start {{ keycloak_container_name }}"
+  when:
+    - keycloak_container_exists.rc == 0
+    - keycloak_running.stdout | trim != 'true'
