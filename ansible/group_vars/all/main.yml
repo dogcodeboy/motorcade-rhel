@@ -8,11 +8,9 @@ motorcade_nginx_domains:
 motorcade_nginx_tls_cert_dir: /etc/pki/tls/motorcade
 
 keycloak_db_mode: rds
-keycloak_db_host: ""
 keycloak_db_port: 5432
 keycloak_db_name: keycloak
 keycloak_db_user: keycloak
-keycloak_db_secret_arn: ""
 keycloak_hostname: sso.motorcade.vip
 
 podman_bin_candidates:
