@@ -55,5 +55,5 @@
     mode: "0644"
     content: |
       Banner /etc/issue
-    validate: /usr/sbin/sshd -t -f %s
+    validate: /usr/sbin/sshd -t
   notify: Restart sshd

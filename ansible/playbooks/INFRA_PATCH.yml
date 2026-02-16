@@ -7,9 +7,11 @@
     motorcade_patching_enabled: false
 
   tasks:
-    - name: Skip patching play unless explicitly enabled
-      ansible.builtin.meta: end_play
-      when: not motorcade_patching_enabled | bool
+    - name: Require explicit patching enablement
+      ansible.builtin.assert:
+        that:
+          - motorcade_patching_enabled | bool
+        fail_msg: Patching is disabled by default. Set motorcade_patching_enabled=true for maintenance windows.
 
     - name: Update system packages
       ansible.builtin.dnf:
@@ -52,6 +54,4 @@
       ansible.builtin.reboot:
         reboot_timeout: 1800
         post_reboot_delay: 30
-      when:
-        - not ansible_check_mode
-        - motorcade_reboot_required | bool
+      when: motorcade_reboot_required | bool
