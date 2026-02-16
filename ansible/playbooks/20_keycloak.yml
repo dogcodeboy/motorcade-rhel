@@ -1,10 +1,10 @@
 ---
 - import_playbook: 00_preflight.yml
+- import_playbook: 05_secrets_preflight.yml
 
-- name: Keycloak post-boot
+- name: Keycloak hardened post-boot
   hosts: all
   become: true
   gather_facts: true
   roles:
     - role: keycloak
-      when: keycloak_enabled | bool

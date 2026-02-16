@@ -1,14 +1,20 @@
 ---
 motorcade_timezone: "UTC"
 
-# Bind services safely by default
-nginx_listen_ip: "0.0.0.0"
-nginx_listen_port: 80
+motorcade_nginx_domains:
+  - motorcade.vip
+  - sso.motorcade.vip
 
-keycloak_enabled: true
-keycloak_hostname_strict: false
+motorcade_nginx_tls_cert_dir: /etc/pki/tls/motorcade
 
-# Podman binary preference (you install podman via your method)
+keycloak_db_mode: rds
+keycloak_db_host: ""
+keycloak_db_port: 5432
+keycloak_db_name: keycloak
+keycloak_db_user: keycloak
+keycloak_db_secret_arn: ""
+keycloak_hostname: sso.motorcade.vip
+
 podman_bin_candidates:
   - /usr/local/bin/podman
   - /usr/bin/podman

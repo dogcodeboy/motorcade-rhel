@@ -7,16 +7,22 @@ keycloak_bind_ip: 127.0.0.1
 keycloak_bind_port: 8081
 keycloak_container_port: 8080
 
-keycloak_admin_user: admin
-keycloak_admin_password: change-me
+keycloak_admin_user: ""
+keycloak_admin_password: ""
 
-keycloak_db_mode: container
+keycloak_db_mode: rds
 keycloak_db_host: ""
 keycloak_db_port: 5432
 keycloak_db_name: keycloak
 keycloak_db_user: keycloak
-keycloak_db_password: change-me
+keycloak_db_secret_arn: ""
 
-keycloak_postgres_image: docker.io/library/postgres:16
-keycloak_postgres_container_name: motorcade-keycloak-db
-keycloak_postgres_volume: keycloak-pgdata
+keycloak_hostname: sso.motorcade.vip
+keycloak_hostname_strict: true
+
+keycloak_runtime_dir: /run/motorcade/keycloak
+keycloak_audit_dir: /srv/motorcade/audit
+
+podman_bin_candidates:
+  - /usr/local/bin/podman
+  - /usr/bin/podman

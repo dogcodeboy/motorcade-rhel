@@ -1,4 +1,22 @@
 ---
+- name: Assert RDS-only mode
+  ansible.builtin.assert:
+    that:
+      - keycloak_db_mode | lower == "rds"
+    fail_msg: "Refusing to run: keycloak_db_mode must be 'rds' (no local Postgres containers allowed)."
+
+- name: Assert required Keycloak vars
+  ansible.builtin.assert:
+    that:
+      - keycloak_db_host | trim | length > 0
+      - keycloak_db_name | trim | length > 0
+      - keycloak_db_user | trim | length > 0
+      - keycloak_db_secret_arn | trim | length > 0
+      - keycloak_hostname | trim | length > 0
+      - keycloak_admin_user | trim | length > 0
+      - keycloak_admin_password | trim | length > 0
+    fail_msg: "Missing required Keycloak vars (DB host/name/user/secret ARN, hostname, or admin credentials)."
+
 - name: Check Podman candidate paths
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -21,7 +39,23 @@
   ansible.builtin.assert:
     that:
       - keycloak_podman_bin | length > 0
-    fail_msg: Podman is missing. Rebake the image with Podman installed.
+    fail_msg: "Podman is missing. Rebake the image with Podman installed."
+
+- name: Ensure Keycloak audit directory exists
+  ansible.builtin.file:
+    path: "{{ keycloak_audit_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Ensure Keycloak runtime directory exists
+  ansible.builtin.file:
+    path: "{{ keycloak_runtime_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
 
 - name: Ensure Keycloak Podman network exists
   ansible.builtin.command:
@@ -34,74 +68,48 @@
   ansible.builtin.command:
     cmd: "{{ keycloak_podman_bin }} network create {{ keycloak_network_name }}"
   when: keycloak_network_exists.rc != 0
+  changed_when: true
 
-- name: Ensure Keycloak database volume exists
-  ansible.builtin.command:
-    cmd: "{{ keycloak_podman_bin }} volume exists {{ keycloak_postgres_volume }}"
-  register: keycloak_pg_volume_exists
-  failed_when: false
-  changed_when: false
-  when: keycloak_db_mode == 'container'
-
-- name: Create Keycloak database volume
-  ansible.builtin.command:
-    cmd: "{{ keycloak_podman_bin }} volume create {{ keycloak_postgres_volume }}"
-  when:
-    - keycloak_db_mode == 'container'
-    - keycloak_pg_volume_exists.rc != 0
-
-- name: Check Keycloak database container presence
-  ansible.builtin.command:
-    cmd: "{{ keycloak_podman_bin }} container exists {{ keycloak_postgres_container_name }}"
-  register: keycloak_pg_container_exists
-  failed_when: false
-  changed_when: false
-  when: keycloak_db_mode == 'container'
-
-- name: Create Keycloak database container
+- name: Fetch Keycloak DB secret JSON from Secrets Manager
   ansible.builtin.command:
     cmd: >-
-      {{ keycloak_podman_bin }} run -d
-      --name {{ keycloak_postgres_container_name }}
-      --network {{ keycloak_network_name }}
-      --volume {{ keycloak_postgres_volume }}:/var/lib/postgresql/data:Z
-      -e POSTGRES_DB={{ keycloak_db_name }}
-      -e POSTGRES_USER={{ keycloak_db_user }}
-      -e POSTGRES_PASSWORD={{ keycloak_db_password }}
-      {{ keycloak_postgres_image }}
-  when:
-    - keycloak_db_mode == 'container'
-    - keycloak_pg_container_exists.rc != 0
-
-- name: Inspect Keycloak database container running state
-  ansible.builtin.command:
-    cmd: "{{ keycloak_podman_bin }} inspect -f {{ '{{.State.Running}}' }} {{ keycloak_postgres_container_name }}"
-  register: keycloak_pg_running
-  failed_when: false
+      aws secretsmanager get-secret-value
+      --secret-id {{ keycloak_db_secret_arn }}
+      --query SecretString
+      --output text
+  register: keycloak_db_secret_raw
   changed_when: false
-  when:
-    - keycloak_db_mode == 'container'
-    - keycloak_pg_container_exists.rc == 0
+  no_log: true
 
-- name: Start Keycloak database container if stopped
-  ansible.builtin.command:
-    cmd: "{{ keycloak_podman_bin }} start {{ keycloak_postgres_container_name }}"
-  when:
-    - keycloak_db_mode == 'container'
-    - keycloak_pg_container_exists.rc == 0
-    - keycloak_pg_running.stdout | trim != 'true'
-
-- name: Resolve Keycloak database host
+- name: Parse Keycloak DB secret JSON
   ansible.builtin.set_fact:
-    keycloak_db_host_effective: >-
-      {{ keycloak_postgres_container_name if keycloak_db_mode == 'container' else keycloak_db_host }}
+    keycloak_db_secret: "{{ keycloak_db_secret_raw.stdout | from_json }}"
   changed_when: false
+  no_log: true
 
-- name: Assert external database host is provided in RDS mode
+- name: Resolve Keycloak DB credentials from secret
+  ansible.builtin.set_fact:
+    keycloak_db_username: "{{ keycloak_db_secret.username | default(keycloak_db_user) }}"
+    keycloak_db_password_effective: "{{ keycloak_db_secret.password | default('') }}"
+  changed_when: false
+  no_log: true
+
+- name: Assert Keycloak DB password is present in secret
   ansible.builtin.assert:
     that:
-      - keycloak_db_host_effective | length > 0
-    fail_msg: keycloak_db_host must be set when keycloak_db_mode is not container.
+      - keycloak_db_password_effective | length > 0
+    fail_msg: "Secrets Manager value must include a non-empty password."
+
+- name: Write ephemeral Keycloak DB env file
+  ansible.builtin.copy:
+    dest: "{{ keycloak_runtime_dir }}/db.env"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      KC_DB_USERNAME={{ keycloak_db_username }}
+      KC_DB_PASSWORD={{ keycloak_db_password_effective }}
+  no_log: true
 
 - name: Check Keycloak container presence
   ansible.builtin.command:
@@ -116,21 +124,29 @@
       {{ keycloak_podman_bin }} run -d
       --name {{ keycloak_container_name }}
       --network {{ keycloak_network_name }}
-      -p {{ keycloak_bind_ip }}:{{ keycloak_bind_port }}:{{ keycloak_container_port }}
+      --read-only
+      --cap-drop=ALL
+      --security-opt=no-new-privileges
+      --pids-limit 200
+      --memory 1g
+      -p 127.0.0.1:8081:8080
+      --env-file {{ keycloak_runtime_dir }}/db.env
       -e KEYCLOAK_ADMIN={{ keycloak_admin_user }}
       -e KEYCLOAK_ADMIN_PASSWORD={{ keycloak_admin_password }}
       -e KC_DB=postgres
-      -e KC_DB_URL_HOST={{ keycloak_db_host_effective }}
+      -e KC_DB_URL_HOST={{ keycloak_db_host }}
       -e KC_DB_URL_PORT={{ keycloak_db_port }}
       -e KC_DB_URL_DATABASE={{ keycloak_db_name }}
-      -e KC_DB_USERNAME={{ keycloak_db_user }}
-      -e KC_DB_PASSWORD={{ keycloak_db_password }}
       -e KC_PROXY=edge
+      -e KC_HOSTNAME={{ keycloak_hostname }}
       -e KC_HOSTNAME_STRICT={{ keycloak_hostname_strict | ternary('true', 'false') }}
+      -e KC_HTTP_ENABLED=true
       {{ keycloak_image }}
       start
       --optimized
   when: keycloak_container_exists.rc != 0
+  changed_when: true
+  no_log: true
 
 - name: Inspect Keycloak container running state
   ansible.builtin.command:
@@ -146,3 +162,25 @@
   when:
     - keycloak_container_exists.rc == 0
     - keycloak_running.stdout | trim != 'true'
+  changed_when: true
+
+- name: Capture Keycloak audit artifacts
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ keycloak_podman_bin }} inspect {{ keycloak_container_name }} > {{ keycloak_audit_dir }}/keycloak_container_inspect.json
+    {{ keycloak_podman_bin }} image inspect {{ keycloak_image }} > {{ keycloak_audit_dir }}/keycloak_image_inspect.json
+    cat > {{ keycloak_audit_dir }}/keycloak_config_effective.txt <<'CFG'
+    keycloak_container_name={{ keycloak_container_name }}
+    keycloak_image={{ keycloak_image }}
+    keycloak_network_name={{ keycloak_network_name }}
+    keycloak_bind=127.0.0.1:8081->8080
+    keycloak_db_mode={{ keycloak_db_mode }}
+    keycloak_db_host={{ keycloak_db_host }}
+    keycloak_db_port={{ keycloak_db_port }}
+    keycloak_db_name={{ keycloak_db_name }}
+    keycloak_db_user={{ keycloak_db_username }}
+    keycloak_hostname={{ keycloak_hostname }}
+    keycloak_hostname_strict={{ keycloak_hostname_strict | ternary('true', 'false') }}
+    CFG
+    printf '%s\n' '{{ keycloak_db_secret_arn }}' > {{ keycloak_audit_dir }}/keycloak_secret_arn_used.txt
+  changed_when: true
