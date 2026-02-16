@@ -1,9 +1,0 @@
----
-- import_playbook: 00_preflight.yml
-
-- name: Nginx post-boot
-  hosts: all
-  become: true
-  gather_facts: true
-  roles:
-    - role: nginx
