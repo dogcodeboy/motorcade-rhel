@@ -1,0 +1,52 @@
+---
+- name: Assert Postgres password present
+  ansible.builtin.assert:
+    that:
+      - vault_postgres_password | length > 10
+    fail_msg: "vault_postgres_password must be set in ansible-vault (>= 11 chars)."
+
+- name: Ensure postgres volume exists
+  ansible.builtin.file:
+    path: "{{ motorcade_vol_dir }}/postgres"
+    state: directory
+    owner: 999
+    group: 999
+    mode: "0700"
+
+- name: Install postgres Quadlet unit (rootless via ec2-user)
+  ansible.builtin.template:
+    src: motorcade-postgres.container.j2
+    dest: "/home/ec2-user/.config/containers/systemd/motorcade-postgres.container"
+    owner: ec2-user
+    group: ec2-user
+    mode: "0644"
+  no_log: true
+
+- name: Get ec2-user UID
+  ansible.builtin.command: id -u ec2-user
+  register: _uid
+  changed_when: false
+
+- name: Reload user systemd daemon
+  become_user: ec2-user
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _uid.stdout }}"
+  ansible.builtin.systemd:
+    daemon_reload: true
+    scope: user
+
+- name: Enable and start postgres service
+  become_user: ec2-user
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _uid.stdout }}"
+  ansible.builtin.systemd:
+    name: motorcade-postgres.service
+    enabled: true
+    state: started
+    scope: user
+
+- name: Wait for postgres to accept connections
+  ansible.builtin.wait_for:
+    host: "{{ postgres_bind_host }}"
+    port: "{{ postgres_port }}"
+    timeout: 60

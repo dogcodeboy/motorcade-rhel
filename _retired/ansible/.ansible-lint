@@ -1,0 +1,8 @@
+profile: production
+skip_list:
+  - yaml[indentation]
+  - fqcn[action-core]
+  - name[casing]
+warn_list:
+  - risky-shell-pipe
+  - command-instead-of-shell

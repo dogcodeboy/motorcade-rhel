@@ -1,0 +1,67 @@
+---
+- name: Install Podman via dnf (optional)
+  when: podman_install_method == 'dnf'
+  ansible.builtin.dnf:
+    name: podman
+    state: present
+
+- name: Install Podman via locked-path static binary (recommended)
+  when: podman_install_method == 'locked_path'
+  block:
+    - name: Ensure /usr/local/bin exists
+      ansible.builtin.file:
+        path: /usr/local/bin
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Download Podman static release tarball
+      ansible.builtin.get_url:
+        url: "https://github.com/containers/podman/releases/download/v{{ podman_version }}/podman-remote-static-linux_amd64.tar.gz"
+        dest: "/tmp/podman-static-{{ podman_version }}.tgz"
+        mode: "0644"
+      when: not ansible_check_mode
+
+    - name: Ensure Podman static extract directory exists
+      ansible.builtin.file:
+        path: "/tmp/podman-static-{{ podman_version }}"
+        state: directory
+        mode: "0755"
+      when: not ansible_check_mode
+
+    - name: Extract Podman static release
+      ansible.builtin.unarchive:
+        src: "/tmp/podman-static-{{ podman_version }}.tgz"
+        dest: "/tmp/podman-static-{{ podman_version }}"
+        remote_src: true
+        creates: "/tmp/podman-static-{{ podman_version }}/podman-remote-static-linux_amd64"
+      when: not ansible_check_mode
+
+    - name: Install podman binary (locked-path)
+      ansible.builtin.copy:
+        src: "/tmp/podman-static-{{ podman_version }}/podman-remote-static-linux_amd64/podman-remote-static-linux_amd64"
+        dest: "{{ podman_locked_path_bin }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      when: not ansible_check_mode
+
+- name: Ensure podman is available
+  ansible.builtin.command: "{{ podman_locked_path_bin if podman_install_method == 'locked_path' else 'podman' }} version"
+  register: _podman_version
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Enable user lingering for ec2-user
+  ansible.builtin.command: "loginctl enable-linger ec2-user"
+  changed_when: false
+
+- name: Ensure quadlet dir exists for ec2-user
+  ansible.builtin.file:
+    path: "/home/ec2-user/.config/containers/systemd"
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: "0755"

@@ -1,0 +1,44 @@
+---
+- name: Assert Keycloak admin password present
+  ansible.builtin.assert:
+    that:
+      - vault_keycloak_admin_password | length > 10
+    fail_msg: "vault_keycloak_admin_password must be set in ansible-vault (>= 11 chars)."
+
+- name: Install keycloak Quadlet unit (rootless via ec2-user)
+  ansible.builtin.template:
+    src: motorcade-keycloak.container.j2
+    dest: "/home/ec2-user/.config/containers/systemd/motorcade-keycloak.container"
+    owner: ec2-user
+    group: ec2-user
+    mode: "0644"
+  no_log: true
+
+- name: Get ec2-user UID
+  ansible.builtin.command: id -u ec2-user
+  register: _uid
+  changed_when: false
+
+- name: Reload user systemd daemon
+  become_user: ec2-user
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _uid.stdout }}"
+  ansible.builtin.systemd:
+    daemon_reload: true
+    scope: user
+
+- name: Enable and start keycloak service
+  become_user: ec2-user
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _uid.stdout }}"
+  ansible.builtin.systemd:
+    name: motorcade-keycloak.service
+    enabled: true
+    state: started
+    scope: user
+
+- name: Verify keycloak port is listening (loopback)
+  ansible.builtin.wait_for:
+    host: "{{ keycloak_bind_host }}"
+    port: "{{ keycloak_http_port }}"
+    timeout: 60

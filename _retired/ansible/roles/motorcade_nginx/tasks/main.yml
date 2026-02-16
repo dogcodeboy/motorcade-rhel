@@ -1,0 +1,66 @@
+---
+- name: Ensure nginx config directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ motorcade_conf_dir }}/nginx"
+    - "{{ motorcade_conf_dir }}/nginx/conf.d"
+    - "{{ motorcade_vol_dir }}/nginx-cache"
+
+- name: Install nginx base config
+  ansible.builtin.copy:
+    src: nginx.conf
+    dest: "{{ motorcade_conf_dir }}/nginx/nginx.conf"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install nginx default server
+  ansible.builtin.copy:
+    src: conf.d/default.conf
+    dest: "{{ motorcade_conf_dir }}/nginx/conf.d/default.conf"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install nginx Quadlet unit (rootless via ec2-user)
+  ansible.builtin.template:
+    src: motorcade-nginx.container.j2
+    dest: "/home/ec2-user/.config/containers/systemd/motorcade-nginx.container"
+    owner: ec2-user
+    group: ec2-user
+    mode: "0644"
+
+- name: Get ec2-user UID
+  ansible.builtin.command: id -u ec2-user
+  register: _uid
+  changed_when: false
+
+- name: Reload user systemd daemon
+  become_user: ec2-user
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _uid.stdout }}"
+  ansible.builtin.systemd:
+    daemon_reload: true
+    scope: user
+
+- name: Enable and start nginx service
+  become_user: ec2-user
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _uid.stdout }}"
+  ansible.builtin.systemd:
+    name: motorcade-nginx.service
+    enabled: true
+    state: started
+    scope: user
+
+- name: Verify nginx health
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ nginx_http_port }}/healthz"
+    return_content: true
+  register: _health
+  failed_when: _health.status != 200

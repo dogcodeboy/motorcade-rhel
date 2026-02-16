@@ -1,0 +1,21 @@
+[Unit]
+Description=Motorcade Keycloak (official image)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=motorcade-keycloak
+Image={{ keycloak_image }}
+Pull=newer
+PublishPort={{ keycloak_bind_host }}:{{ keycloak_http_port }}:8080
+Environment=KC_PROXY=edge
+Environment=KEYCLOAK_ADMIN=admin
+Environment=KEYCLOAK_ADMIN_PASSWORD={{ vault_keycloak_admin_password }}
+Command=start-dev
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

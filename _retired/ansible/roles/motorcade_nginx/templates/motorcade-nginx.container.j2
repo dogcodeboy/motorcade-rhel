@@ -1,0 +1,20 @@
+[Unit]
+Description=Motorcade Nginx (official image)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=motorcade-nginx
+Image={{ nginx_image }}
+Pull=newer
+PublishPort={{ nginx_http_port }}:80
+PublishPort={{ nginx_https_port }}:443
+Volume={{ motorcade_conf_dir }}/nginx:/etc/nginx:ro
+Volume={{ motorcade_vol_dir }}/nginx-cache:/var/cache/nginx:rw
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

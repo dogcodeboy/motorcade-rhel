@@ -1,0 +1,21 @@
+---
+motorcade_base_dir: /srv/motorcade
+motorcade_vol_dir: "{{ motorcade_base_dir }}/volumes"
+motorcade_conf_dir: "{{ motorcade_base_dir }}/config"
+
+podman_install_method: locked_path   # locked_path | dnf
+podman_version: "5.0.3"
+podman_locked_path_bin: /usr/local/bin/podman
+
+nginx_image: docker.io/library/nginx:latest
+postgres_image: docker.io/library/postgres:16
+keycloak_image: quay.io/keycloak/keycloak:26.5.3
+
+nginx_http_port: 80
+nginx_https_port: 443
+
+postgres_bind_host: 127.0.0.1
+postgres_port: 5432
+
+keycloak_bind_host: 127.0.0.1
+keycloak_http_port: 8080
