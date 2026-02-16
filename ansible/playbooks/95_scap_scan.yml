@@ -1,0 +1,57 @@
+---
+- name: SCAP scan (oscap) - write results to audit folder
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    scap_out_dir: "/srv/motorcade/audit/scap/{{ ansible_date_time.date }}"
+    scap_profile: "xccdf_org.ssgproject.content_profile_stig"
+    scap_datastream: "/usr/share/xml/scap/ssg/content/ssg-rhel10-ds.xml"
+
+  tasks:
+    - name: Ensure scap tools installed
+      ansible.builtin.package:
+        name:
+          - openscap-scanner
+          - scap-security-guide
+        state: present
+
+    - name: Ensure SCAP output directory exists
+      ansible.builtin.file:
+        path: "{{ scap_out_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Run oscap evaluation (may take a while)
+      ansible.builtin.command:
+        cmd: >-
+          oscap xccdf eval
+          --profile {{ scap_profile }}
+          --results {{ scap_out_dir }}/results.xml
+          --report {{ scap_out_dir }}/report.html
+          {{ scap_datastream }}
+      register: oscap_run
+      changed_when: true
+      failed_when: false
+
+    - name: Write oscap stdout/stderr for audit
+      ansible.builtin.copy:
+        dest: "{{ scap_out_dir }}/oscap_run.txt"
+        owner: root
+        group: root
+        mode: "0640"
+        content: |
+          rc={{ oscap_run.rc }}
+          stdout:
+          {{ oscap_run.stdout | default('') }}
+          stderr:
+          {{ oscap_run.stderr | default('') }}
+
+    - name: Fail if oscap command itself failed catastrophically (missing datastream/profile)
+      ansible.builtin.assert:
+        that:
+          - oscap_run.rc == 0 or ("Unknown" not in (oscap_run.stderr | default('')))
+        fail_msg: "oscap eval failed. Check {{ scap_out_dir }}/oscap_run.txt"
