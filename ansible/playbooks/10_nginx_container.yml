@@ -1,0 +1,10 @@
+---
+- import_playbook: 00_preflight.yml
+- import_playbook: 12_firewall_web.yml
+
+- name: Nginx (Podman container) hardened post-boot
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: nginx_container
