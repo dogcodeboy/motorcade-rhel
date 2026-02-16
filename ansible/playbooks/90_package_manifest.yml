@@ -1,0 +1,42 @@
+---
+- name: Export installed package manifest to audit directory
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    package_manifest_path: "/srv/motorcade/audit/packages-{{ ansible_date_time.date }}.txt"
+
+  tasks:
+    - name: Ensure audit directory exists
+      ansible.builtin.file:
+        path: /srv/motorcade/audit
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Collect installed RPM packages
+      ansible.builtin.command:
+        cmd: rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\\n'
+      register: rpm_manifest_raw
+      changed_when: false
+
+    - name: Sort installed RPM package list
+      ansible.builtin.set_fact:
+        rpm_manifest_sorted: "{{ rpm_manifest_raw.stdout_lines | sort }}"
+      changed_when: false
+
+    - name: Write dated package manifest
+      ansible.builtin.copy:
+        dest: "{{ package_manifest_path }}"
+        owner: root
+        group: root
+        mode: "0640"
+        content: |
+          # motorcade package manifest
+          # host: {{ inventory_hostname }}
+          # generated_utc: {{ ansible_date_time.iso8601 }}
+          {% for pkg in rpm_manifest_sorted %}
+          {{ pkg }}
+          {% endfor %}
