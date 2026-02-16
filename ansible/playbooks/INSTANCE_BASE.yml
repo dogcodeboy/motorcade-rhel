@@ -1,5 +1,6 @@
 ---
 # Instance lane: runs on EC2 instances launched from a baked image.
-- import_playbook: INFRA_00_PRE_FLIGHT.yml
+- import_playbook: instance/INFRA_02_podman_runtime_validate.yml
 - import_playbook: INFRA_06_security_baseline.yml
+- import_playbook: INFRA_07_cac_smartcard.yml
 - import_playbook: INFRA_BANNER.yml

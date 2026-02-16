@@ -2,5 +2,5 @@
 # Bake lane: runs only in Image Builder pipeline / bake hosts.
 - import_playbook: INFRA_00_PRE_FLIGHT.yml
 - import_playbook: INFRA_00_fips_enable.yml
-- import_playbook: INFRA_01_os_update.yml
-- import_playbook: INFRA_02_podman_runtime.yml
+- import_playbook: bake/INFRA_01_os_update.yml
+- import_playbook: bake/INFRA_02_podman_runtime.yml

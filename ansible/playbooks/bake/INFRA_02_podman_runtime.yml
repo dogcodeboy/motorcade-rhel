@@ -1,0 +1,7 @@
+---
+- name: INFRA_02 | Podman runtime install/config (bake lane)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+  roles:
+    - role: motorcade_podman_runtime
