@@ -1,0 +1,49 @@
+---
+- name: Install local console login banner
+  ansible.builtin.copy:
+    dest: /etc/issue
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Motorcade Security Solutions
+      Controlled Information System
+
+      This system is the property of Motorcade Security Solutions,LLC.
+      It is intended for authorized users only.
+
+      By accessing this system, you consent to monitoring, recording, and auditing of all activities.
+      Unauthorized access or use is prohibited and may result in disciplinary action, civil liability, and/or criminal prosecution.
+
+      Information on this system may be subject to federal contract compliance requirements, including but not limited to FISMA, NIST 800-53, and STIG controls.
+
+      If you are not an authorized user, disconnect immediately.
+
+- name: Install remote login banner
+  ansible.builtin.copy:
+    dest: /etc/issue.net
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Motorcade Security Solutions
+      Controlled Information System
+
+      This system is the property of Motorcade Security Solutions,LLC.
+      It is intended for authorized users only.
+
+      By accessing this system, you consent to monitoring, recording, and auditing of all activities.
+      Unauthorized access or use is prohibited and may result in disciplinary action, civil liability, and/or criminal prosecution.
+
+      Information on this system may be subject to federal contract compliance requirements, including but not limited to FISMA, NIST 800-53, and STIG controls.
+
+      If you are not an authorized user, disconnect immediately.
+
+- name: Ensure sshd banner path is configured
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?Banner\\s+"
+    line: "Banner /etc/issue"
+    insertafter: EOF
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd

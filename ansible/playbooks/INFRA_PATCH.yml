@@ -1,0 +1,36 @@
+---
+- name: INFRA_PATCH | OS patching maintenance window
+  hosts: motorcade
+  become: true
+  gather_facts: true
+  vars:
+    motorcade_patching_enabled: false
+
+  tasks:
+    - name: Require explicit patching enablement
+      ansible.builtin.assert:
+        that:
+          - motorcade_patching_enabled | bool
+        fail_msg: Patching is disabled by default. Set motorcade_patching_enabled=true for maintenance windows.
+
+    - name: Update system packages
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: motorcade_patch_result
+
+    - name: Check whether reboot is required
+      ansible.builtin.command:
+        cmd: needs-restarting -r
+      register: motorcade_patch_reboot_check
+      failed_when: false
+      changed_when: false
+
+    - name: Reboot if required
+      ansible.builtin.reboot:
+        reboot_timeout: 1800
+        post_reboot_delay: 30
+      when:
+        - not ansible_check_mode
+        - motorcade_patch_reboot_check.rc == 1

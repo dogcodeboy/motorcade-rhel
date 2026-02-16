@@ -1,0 +1,7 @@
+---
+- name: INFRA_BANNER | Enforce login banner
+  hosts: motorcade
+  become: true
+  gather_facts: false
+  roles:
+    - role: motorcade_login_banner

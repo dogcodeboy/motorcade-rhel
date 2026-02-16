@@ -6,8 +6,17 @@
 
   vars:
     infra_fips_bake_mode: false
+    motorcade_fips_bake_enabled: false
 
   tasks:
+    - name: Skip FIPS bake play unless explicitly enabled
+      ansible.builtin.meta: end_play
+      when: not motorcade_fips_bake_enabled | bool
+
+    - name: Skip FIPS bake play in check mode
+      ansible.builtin.meta: end_play
+      when: ansible_check_mode
+
     # FEDERAL-READY: Guardrail to prevent accidental execution on live systems.
     - name: Require explicit bake mode confirmation
       ansible.builtin.assert:

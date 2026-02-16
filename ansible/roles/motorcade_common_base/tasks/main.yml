@@ -1,0 +1,43 @@
+---
+- name: Ensure dnf cache is up to date
+  ansible.builtin.command: dnf -y makecache
+  changed_when: false
+  when: motorcade_common_base_patching_enabled | bool
+
+- name: Update packages
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+  when: motorcade_common_base_patching_enabled | bool
+
+- name: Install baseline tools
+  ansible.builtin.dnf:
+    name:
+      - curl
+      - ca-certificates
+      - tar
+      - unzip
+      - git
+      - jq
+      - chrony
+      - policycoreutils-python-utils
+    state: present
+
+- name: Ensure chronyd enabled
+  ansible.builtin.service:
+    name: chronyd
+    enabled: true
+    state: started
+
+- name: Create Motorcade directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ motorcade_base_dir }}"
+    - "{{ motorcade_vol_dir }}"
+    - "{{ motorcade_conf_dir }}"
