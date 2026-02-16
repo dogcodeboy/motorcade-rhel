@@ -1,0 +1,33 @@
+---
+- name: Firewall allow web ports (80/443) - reproducible
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Ensure firewalld is installed
+      ansible.builtin.package:
+        name: firewalld
+        state: present
+
+    - name: Ensure firewalld is enabled and running
+      ansible.builtin.service:
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: Open 80/tcp in public zone
+      ansible.posix.firewalld:
+        zone: public
+        port: 80/tcp
+        permanent: true
+        state: enabled
+        immediate: true
+
+    - name: Open 443/tcp in public zone
+      ansible.posix.firewalld:
+        zone: public
+        port: 443/tcp
+        permanent: true
+        state: enabled
+        immediate: true
