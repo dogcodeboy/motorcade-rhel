@@ -1,9 +1,3 @@
 ---
-# FEDERAL-READY: AMI bake baseline only (no service containers).
-# Goal: Runtime baseline only (podman + hardening + banner + CAC readiness).
-
-- import_playbook: INFRA_01_os_update.yml
-- import_playbook: INFRA_02_podman_runtime.yml
-- import_playbook: INFRA_06_security_baseline.yml
-- import_playbook: INFRA_07_cac_smartcard.yml
-- import_playbook: INFRA_BANNER.yml
+# Legacy wrapper: kept for compatibility. Prefer INSTANCE_BASE.yml directly.
+- import_playbook: INSTANCE_BASE.yml

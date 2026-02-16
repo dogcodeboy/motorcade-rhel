@@ -1,10 +1,4 @@
 ---
-# FEDERAL-READY: Run FIPS playbook only during image bake / pre-AMI capture.
-# FEDERAL-READY: Keep this file as orchestration-only imports.
-- import_playbook: INFRA_00_PRE_FLIGHT.yml
-- import_playbook: INFRA_00_fips_enable.yml
-- import_playbook: INFRA_01_os_update.yml
-- import_playbook: INFRA_02_podman_runtime.yml
-- import_playbook: INFRA_06_security_baseline.yml
-- import_playbook: INFRA_03_nginx_container.yml
-# FEDERAL-READY: Add future INFRA_0X imports (postgres/keycloak/etc) separately.
+# Legacy wrapper: runs both lanes. Prefer BAKE_BASE or INSTANCE_BASE directly.
+- import_playbook: BAKE_BASE.yml
+- import_playbook: INSTANCE_BASE.yml
