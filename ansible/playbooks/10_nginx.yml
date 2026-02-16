@@ -1,0 +1,7 @@
+---
+- name: Nginx post-boot (placeholder)
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: nginx

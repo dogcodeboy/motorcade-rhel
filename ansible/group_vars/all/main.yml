@@ -1,0 +1,14 @@
+---
+motorcade_timezone: "UTC"
+
+# Bind services safely by default
+nginx_listen_ip: "0.0.0.0"
+nginx_listen_port: 80
+
+keycloak_enabled: true
+keycloak_hostname_strict: false
+
+# Podman binary preference (you install podman via your method)
+podman_bin_candidates:
+  - /usr/local/bin/podman
+  - /usr/bin/podman
