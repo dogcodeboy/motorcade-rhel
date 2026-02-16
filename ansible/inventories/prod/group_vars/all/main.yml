@@ -15,3 +15,8 @@ nginx_https_port: 443
 
 keycloak_bind_host: 127.0.0.1
 keycloak_http_port: 8080
+
+# Podman install is non-standard in this environment; enumerate trusted paths.
+podman_bin_candidates:
+  - /usr/local/bin/podman
+  - /usr/bin/podman
