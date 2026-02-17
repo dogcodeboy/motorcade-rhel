@@ -1,76 +1,57 @@
-# STAGING Validation & Bring-Up Runbook
+# STAGING Validation & Bring-Up Runbook  
+**(Dry-Run Safe, STIG-Compliant, ID-Proof)**
 
-(Dry-Run Safe, STIG-Compliant, No Manual Server Edits)
+This runbook describes how to safely validate, bring up, and verify the Motorcade RHEL stack on a staging environment without manual server edits. All changes must come from committed Ansible playbooks.
 
-This document defines the exact, repeatable method to:
+---
 
-Validate playbooks without changing state
+## Rules (Non-Negotiable)
 
-Bring up staging infrastructure safely
+- Do **not** disable SELinux or set it to permissive.
+- Do **not** run containers with `--privileged`.
+- Do **not** hand-edit servers.
+- Only use Ansible playbooks committed in this repo.
+- Fact gathering (logs, inspect, ss checks) over SSH is allowed.
 
-Prove success
+---
 
-Capture structured evidence when failure occurs
+# Phase 1 — Dry Run (No State Change)
 
-This workflow is environment-agnostic and must work on any properly configured host in the [motorcade] inventory group.
+## Export Environment
 
-🔒 Rules (Non-Negotiable)
-
-Do NOT disable SELinux.
-
-Do NOT use --privileged.
-
-Do NOT SSH in and “just fix something.”
-
-Do NOT edit files directly on the server.
-
-All changes must originate from committed Ansible playbooks.
-
-Fact-finding via SSH is allowed. Configuration changes are not.
-
-Phase 1 — Dry Run (Zero State Change)
-
-Purpose: Ensure playbooks parse correctly and inventory is wired properly before touching the server.
-
-From repo root:
-
+```bash
 export ANSIBLE_CONFIG="$PWD/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$PWD/ansible/roles"
 export VAULT_PASS_FILE=~/.ansible_vault_pass
 
-1️⃣ Syntax Check (fast fail)
+1️⃣ Syntax Check (Fast Fail)
 ansible-playbook --syntax-check \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/09_nginx_runtime_dirs.yml
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/09_nginx_runtime_dirs.yml
 
 ansible-playbook --syntax-check \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/10_nginx_container.yml
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/10_nginx_container.yml
 
 
-Expected: No errors.
+Expected: no YAML parse errors.
 
-2️⃣ Inventory Validation (no changes)
+2️⃣ Inventory & Connectivity Check
 ansible -i ansible/inventories/staging/hosts.ini motorcade -m ping
 
 
-Expected:
+Expected: pong
 
-pong
-
-
-If this fails, do NOT proceed. Fix SSH, inventory group, or vault first.
-
-3️⃣ Check Mode (dry execution)
+3️⃣ Check Mode (Simulation)
 ansible-playbook \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/09_nginx_runtime_dirs.yml \
---check --vault-password-file "$VAULT_PASS_FILE"
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/09_nginx_runtime_dirs.yml \
+  --check --vault-password-file "$VAULT_PASS_FILE"
 
 ansible-playbook \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/10_nginx_container.yml \
---check --vault-password-file "$VAULT_PASS_FILE"
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/10_nginx_container.yml \
+  --check --vault-password-file "$VAULT_PASS_FILE"
 
 
 Expected:
@@ -85,30 +66,27 @@ If check mode fails, fix playbooks before real execution.
 
 Phase 2 — Controlled Bring-Up
 
-Run in strict order.
+Run in strict order:
 
 ansible-playbook \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/09_nginx_runtime_dirs.yml \
---vault-password-file "$VAULT_PASS_FILE"
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/09_nginx_runtime_dirs.yml \
+  --vault-password-file "$VAULT_PASS_FILE"
 
 ansible-playbook \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/10_nginx_container.yml \
---vault-password-file "$VAULT_PASS_FILE"
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/10_nginx_container.yml \
+  --vault-password-file "$VAULT_PASS_FILE"
 
 
 Optional (only if configured):
 
 ansible-playbook \
--i ansible/inventories/staging/hosts.ini \
-ansible/playbooks/20_keycloak.yml \
---vault-password-file "$VAULT_PASS_FILE"
+  -i ansible/inventories/staging/hosts.ini \
+  ansible/playbooks/20_keycloak.yml \
+  --vault-password-file "$VAULT_PASS_FILE"
 
-Phase 3 — Validation (Facts Only)
-
-Run these on the staging server.
-
+Phase 3 — Post-Bring-Up Validation (Facts Only)
 Containers
 sudo podman ps -a
 
@@ -125,9 +103,7 @@ sudo ss -lntp | egrep ":(80|443|8080|8443)\b" || true
 
 Expected:
 
-80 and 443 listening for nginx
-
-8080/8443 if using internal mapping
+nginx listening on 80 and 443
 
 Health Endpoint
 curl -sS -I http://127.0.0.1/healthz | sed -n '1,12p'
@@ -144,7 +120,7 @@ sudo podman inspect motorcade-nginx --format "CapAdd={{json .HostConfig.CapAdd}}
 
 Expected:
 
-No no-new-privileges
+SecurityOpt=[]
 
 CapAdd includes:
 
@@ -157,28 +133,25 @@ SETGID
 CHOWN
 
 Privileged must remain false.
+SELinux must remain enforcing.
 
 What Success Looks Like
 
 Both playbooks return rc=0
 
-Nginx container is “Up”
+nginx container is Up
 
-Listeners exist on 80/443
+Listeners on 80/443
 
 Health endpoint returns 200
 
-SELinux remains Enforcing
-
-No manual edits were required
+No manual SSH fixes were required
 
 That is staging-ready state.
 
 Failure Evidence Collection (Copy-Paste Bundle)
 
-If anything fails, do NOT guess.
-
-Collect:
+If anything fails, collect:
 
 sudo podman ps -a --filter name=motorcade-nginx
 sudo podman logs --tail 250 motorcade-nginx
@@ -190,8 +163,7 @@ getenforce
 
 
 Attach output to ticket or commit notes.
-
-Do NOT modify server state until root cause is understood and fixed in Ansible.
+Do not modify server state until root cause is understood and fixed in Ansible.
 
 Why This Matters
 
