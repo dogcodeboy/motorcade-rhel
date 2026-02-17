@@ -1,0 +1,118 @@
+---
+- name: Motorcade - fapolicyd allow crun dynamic loader for Podman stability
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    motorcade_crun_bin: /usr/bin/crun
+    motorcade_podman_bin: /usr/bin/podman
+
+    # Keep this filename "early" so it loads before generic deny rules
+    motorcade_rule_file: /etc/fapolicyd/rules.d/29-motorcade-ldso-root.rules
+
+    # Old/broad rule we no longer want
+    motorcade_old_broad_rule: /etc/fapolicyd/rules.d/29-motorcade-crun-ldso.rules
+
+    motorcade_rule_content: |
+      # Motorcade: allow container runtime dynamic-loader pattern only for crun (root)
+      # Fixes: crun/libsystemd.so.* "Operation not permitted" under fapolicyd (STIG environments)
+      allow perm=any uid=0 pattern=ld_so : all
+
+    # Optional: If you want it to try starting keycloak container at the end
+    motorcade_try_start_keycloak: true
+    motorcade_keycloak_container_name: motorcade-keycloak
+
+  tasks:
+    - name: Ensure fapolicyd is installed
+      ansible.builtin.package:
+        name: fapolicyd
+        state: present
+
+    - name: Ensure Podman is installed (sanity)
+      ansible.builtin.package:
+        name: podman
+        state: present
+
+    - name: Check if crun exists
+      ansible.builtin.stat:
+        path: "{{ motorcade_crun_bin }}"
+      register: crun_stat
+
+    - name: Fail if crun is missing (Podman runtime expects it here)
+      ansible.builtin.fail:
+        msg: "crun not found at {{ motorcade_crun_bin }}. Fix runtime packaging/install first."
+      when: not crun_stat.stat.exists
+
+    - name: Remove old broad ld_so allow rule if present
+      ansible.builtin.file:
+        path: "{{ motorcade_old_broad_rule }}"
+        state: absent
+      notify: Restart fapolicyd
+
+    - name: Install tight Motorcade crun ld_so allow rule (early-order)
+      ansible.builtin.copy:
+        dest: "{{ motorcade_rule_file }}"
+        content: "{{ motorcade_rule_content }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart fapolicyd
+
+    - name: Ensure fapolicyd is enabled and running
+      ansible.builtin.systemd:
+        name: fapolicyd
+        state: started
+        enabled: true
+
+    # Force handlers now so validation reflects the new rules immediately
+    - name: Flush handlers
+      ansible.builtin.meta: flush_handlers
+
+    - name: Validate crun works under fapolicyd
+      ansible.builtin.command: "{{ motorcade_crun_bin }} --version"
+      register: crun_version
+      changed_when: false
+
+    - name: Validate Podman runtime selection includes crun
+      ansible.builtin.command: "{{ motorcade_podman_bin }} info --debug"
+      register: podman_info
+      changed_when: false
+
+    - name: Assert podman reports crun runtime path
+      ansible.builtin.assert:
+        that:
+          - "'crun' in podman_info.stdout"
+          - "'/usr/bin/crun' in podman_info.stdout"
+        fail_msg: >
+          Podman debug info did not show crun runtime as expected.
+          Check /etc/containers/containers.conf and runtime packaging.
+
+    - name: Check if Keycloak container exists (optional)
+      ansible.builtin.command: "{{ motorcade_podman_bin }} container exists {{ motorcade_keycloak_container_name }}"
+      register: keycloak_exists
+      changed_when: false
+      failed_when: false
+      when: motorcade_try_start_keycloak
+
+    - name: Start Keycloak container if present (optional)
+      ansible.builtin.command: "{{ motorcade_podman_bin }} start {{ motorcade_keycloak_container_name }}"
+      register: keycloak_start
+      changed_when: false
+      failed_when: false
+      when:
+        - motorcade_try_start_keycloak
+        - keycloak_exists.rc == 0
+
+    - name: Show Keycloak start result (optional)
+      ansible.builtin.debug:
+        msg: "Keycloak start rc={{ keycloak_start.rc }} stdout={{ keycloak_start.stdout | default('') }} stderr={{ keycloak_start.stderr | default('') }}"
+      when:
+        - motorcade_try_start_keycloak
+        - keycloak_exists.rc == 0
+
+  handlers:
+    - name: Restart fapolicyd
+      ansible.builtin.systemd:
+        name: fapolicyd
+        state: restarted
