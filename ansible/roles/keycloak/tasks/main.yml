@@ -155,7 +155,7 @@
       --network {{ keycloak_network_name }}
       --read-only
       --cap-drop=ALL
-      --security-opt=no-new-privileges
+      --security-opt=no-new-privileges=false=false
       --pids-limit 200
       --memory 1g
       -p 127.0.0.1:8081:8080
@@ -172,7 +172,6 @@
       -e KC_HTTP_ENABLED=true
       {{ keycloak_image }}
       start
-      --optimized
   when: keycloak_container_exists.rc != 0
   changed_when: true
   no_log: true
