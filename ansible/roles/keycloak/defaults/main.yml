@@ -29,3 +29,7 @@ podman_bin_candidates:
 
 # Secrets Manager ARN containing Keycloak admin JSON: {"username":"...","password":"..."}
 keycloak_admin_secret_arn: ""
+
+# AWS Secrets Manager secret IDs (set in inventory/group_vars)
+keycloak_db_secret_id: ""
+keycloak_admin_secret_id: ""

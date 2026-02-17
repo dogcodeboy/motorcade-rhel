@@ -1,0 +1,49 @@
+---
+- name: Motorcade - Keycloak runtime dirs (SELinux enforcing, Podman bind mounts)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  vars:
+    keycloak_base: "/srv/motorcade/keycloak"
+    keycloak_data: "/srv/motorcade/keycloak/data"
+    selinux_type: "container_file_t"
+
+  tasks:
+    - name: Ensure Keycloak base dir exists
+      ansible.builtin.file:
+        path: "{{ keycloak_base }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure Keycloak data dir exists
+      ansible.builtin.file:
+        path: "{{ keycloak_data }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure semanage is available (for fcontext)
+      ansible.builtin.package:
+        name: policycoreutils-python-utils
+        state: present
+
+    - name: Set SELinux fcontext for Keycloak dirs (persistent)
+      ansible.builtin.command: >
+        semanage fcontext -a -t {{ selinux_type }} "{{ keycloak_base }}(/.*)?"
+      register: fcontext_add
+      changed_when: fcontext_add.rc == 0
+      failed_when: false
+
+    - name: Apply SELinux labels to Keycloak dirs
+      ansible.builtin.command: "restorecon -Rv {{ keycloak_base }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Remove legacy Keycloak env file (secrets must never be stored in files)
+      ansible.builtin.file:
+        path: /etc/motorcade/keycloak/keycloak.env
+        state: absent

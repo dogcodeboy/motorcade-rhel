@@ -1,4 +1,4 @@
----
+
 - name: Assert RDS-only mode
   ansible.builtin.assert:
     that:
@@ -139,6 +139,12 @@
       KC_DB_USERNAME={{ keycloak_db_username }}
       KC_DB_PASSWORD={{ keycloak_db_password_effective }}
   no_log: true
+- name: Force remove existing Keycloak container (guarantee new flags apply)
+  ansible.builtin.command:
+    cmd: "{{ keycloak_podman_bin }} rm -f {{ keycloak_container_name }}"
+  ignore_errors: true
+  changed_when: false
+
 
 - name: Check Keycloak container presence
   ansible.builtin.command:
@@ -147,35 +153,122 @@
   failed_when: false
   changed_when: false
 
+- name: Fetch Keycloak secrets (AWS Secrets Manager) + build runtime env
+  block:
+    - name: Assert Keycloak secret IDs are set
+      ansible.builtin.assert:
+        that:
+          - keycloak_db_secret_id | length > 0
+          - keycloak_admin_secret_id | length > 0
+        fail_msg: >
+          Missing secret IDs. Set keycloak_db_secret_id and keycloak_admin_secret_id
+          in inventory/group_vars for this environment.
+
+    - name: Verify AWS CLI is available on the host
+      ansible.builtin.command: aws --version
+      register: aws_cli_version
+      changed_when: false
+
+    - name: Fetch Keycloak DB secret JSON (SecretString)
+      ansible.builtin.command:
+        argv:
+          - aws
+          - secretsmanager
+          - get-secret-value
+          - --secret-id
+          - "{{ keycloak_db_secret_id }}"
+          - --query
+          - SecretString
+          - --output
+          - text
+      register: kc_db_secret_raw
+      changed_when: false
+      no_log: true
+
+    - name: Fetch Keycloak admin secret JSON (SecretString)
+      ansible.builtin.command:
+        argv:
+          - aws
+          - secretsmanager
+          - get-secret-value
+          - --secret-id
+          - "{{ keycloak_admin_secret_id }}"
+          - --query
+          - SecretString
+          - --output
+          - text
+      register: kc_admin_secret_raw
+      changed_when: false
+      no_log: true
+
+    - name: Parse secrets
+      ansible.builtin.set_fact:
+        kc_db_secret: "{{ kc_db_secret_raw.stdout | from_json }}"
+        kc_admin_secret: "{{ kc_admin_secret_raw.stdout | from_json }}"
+      no_log: true
+
+    - name: Render role template into env text (in-memory only)
+      ansible.builtin.set_fact:
+        keycloak_runtime_env_text: "{{ lookup('template', role_path ~ '/templates/keycloak.env.j2') }}"
+      no_log: true
+
+    - name: Parse env text into dict for Ansible environment injection
+      ansible.builtin.set_fact:
+        keycloak_runtime_env: "{{ dict(
+          (keycloak_runtime_env_text.splitlines()
+            | reject('match','^\\s*$')
+            | map('split', '=', 1)
+            | list)
+        ) }}"
+      no_log: true
+  when: not ansible_check_mode
+
+- name: Build Keycloak once (kc.sh build with full runtime config)
+  ansible.builtin.command:
+    cmd: >-
+      {{ keycloak_podman_bin }} run --rm
+      --network {{ keycloak_network_name }}
+      --env KEYCLOAK_ADMIN
+      --env KEYCLOAK_ADMIN_PASSWORD
+      --env KC_DB
+      --env KC_DB_URL_HOST
+      --env KC_DB_URL_PORT
+      --env KC_DB_URL_DATABASE
+      --env KC_PROXY
+      --env KC_HOSTNAME
+      --env KC_HOSTNAME_STRICT
+      --env KC_HTTP_ENABLED
+      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:Z
+      --tmpfs /tmp:rw,noexec,nosuid,nodev
+      --tmpfs /run:rw,noexec,nosuid,nodev
+      {{ keycloak_image }}
+      build
+  environment: "{{ keycloak_runtime_env }}"
+  register: kc_build
+  changed_when: kc_build.rc == 0
+  failed_when: kc_build.rc != 0
+
+
+
 - name: Create Keycloak container
   ansible.builtin.command:
     cmd: >-
       {{ keycloak_podman_bin }} run -d
+      --replace
       --name {{ keycloak_container_name }}
       --network {{ keycloak_network_name }}
       --read-only
+      --tmpfs /run:rw,noexec,nosuid,nodev
+      --tmpfs /tmp:rw,noexec,nosuid,nodev
+      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:Z
       --cap-drop=ALL
-      --security-opt=no-new-privileges=false=false
       --pids-limit 200
       --memory 1g
       -p 127.0.0.1:8081:8080
-      --env-file {{ keycloak_runtime_dir }}/db.env
-      -e KEYCLOAK_ADMIN={{ keycloak_admin_user_effective }}
-      -e KEYCLOAK_ADMIN_PASSWORD={{ keycloak_admin_password_effective }}
-      -e KC_DB=postgres
-      -e KC_DB_URL_HOST={{ keycloak_db_host }}
-      -e KC_DB_URL_PORT={{ keycloak_db_port }}
-      -e KC_DB_URL_DATABASE={{ keycloak_db_name }}
-      -e KC_PROXY=edge
-      -e KC_HOSTNAME={{ keycloak_hostname }}
-      -e KC_HOSTNAME_STRICT={{ keycloak_hostname_strict | ternary('true', 'false') }}
-      -e KC_HTTP_ENABLED=true
       {{ keycloak_image }}
-      start
+      start --optimized
   when: keycloak_container_exists.rc != 0
   changed_when: true
-  no_log: true
-
 - name: Inspect Keycloak container running state
   ansible.builtin.command:
     cmd: "{{ keycloak_podman_bin }} inspect -f {{ '{{.State.Running}}' }} {{ keycloak_container_name }}"
@@ -212,3 +305,4 @@
     CFG
     printf '%s\n' '{{ keycloak_db_secret_arn }}' > {{ keycloak_audit_dir }}/keycloak_secret_arn_used.txt
   changed_when: true
+  environment: "{{ keycloak_runtime_env }}"
