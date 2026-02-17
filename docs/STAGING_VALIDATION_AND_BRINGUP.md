@@ -1,7 +1,8 @@
-# STAGING Validation & Bring-Up Runbook  
+# STAGING Validation & Bring-Up Runbook
 **(Dry-Run Safe, STIG-Compliant, ID-Proof)**
 
-This runbook describes how to safely validate, bring up, and verify the Motorcade RHEL stack on a staging environment without manual server edits. All changes must come from committed Ansible playbooks.
+This runbook describes how to safely validate, bring up, and verify the Motorcade RHEL stack
+on a staging environment without manual server edits. All changes must come from committed Ansible playbooks.
 
 ---
 
@@ -24,7 +25,7 @@ export ANSIBLE_CONFIG="$PWD/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$PWD/ansible/roles"
 export VAULT_PASS_FILE=~/.ansible_vault_pass
 
-1️⃣ Syntax Check (Fast Fail)
+1) Syntax Check (Fast Fail)
 ansible-playbook --syntax-check \
   -i ansible/inventories/staging/hosts.ini \
   ansible/playbooks/09_nginx_runtime_dirs.yml
@@ -36,13 +37,13 @@ ansible-playbook --syntax-check \
 
 Expected: no YAML parse errors.
 
-2️⃣ Inventory & Connectivity Check
+2) Inventory & Connectivity Check
 ansible -i ansible/inventories/staging/hosts.ini motorcade -m ping
 
 
 Expected: pong
 
-3️⃣ Check Mode (Simulation)
+3) Check Mode (Simulation)
 ansible-playbook \
   -i ansible/inventories/staging/hosts.ini \
   ansible/playbooks/09_nginx_runtime_dirs.yml \
@@ -101,17 +102,13 @@ Listeners
 sudo ss -lntp | egrep ":(80|443|8080|8443)\b" || true
 
 
-Expected:
-
-nginx listening on 80 and 443
+Expected: nginx listening on 80 and 443
 
 Health Endpoint
 curl -sS -I http://127.0.0.1/healthz | sed -n '1,12p'
 
 
-Expected:
-
-HTTP/1.1 200 OK
+Expected: HTTP/1.1 200 OK
 
 Container Security Verification
 sudo podman inspect motorcade-nginx --format "SecurityOpt={{json .HostConfig.SecurityOpt}}"
@@ -163,6 +160,7 @@ getenforce
 
 
 Attach output to ticket or commit notes.
+
 Do not modify server state until root cause is understood and fixed in Ansible.
 
 Why This Matters
