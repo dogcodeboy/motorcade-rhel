@@ -1,0 +1,69 @@
+---
+- name: Motorcade - Nginx runtime dirs + mount facts for hardened Podman hosts
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  vars:
+    motorcade_nginx_base: "/srv/motorcade/nginx"
+    motorcade_nginx_runtime_dirs:
+      - { path: "/srv/motorcade/nginx/cache", owner: "0", group: "0", mode: "0777" }
+      - { path: "/srv/motorcade/nginx/run",   owner: "0", group: "0", mode: "0777" }
+      - { path: "/srv/motorcade/nginx/tmp",   owner: "0", group: "0", mode: "1777" }
+    motorcade_selinux_type: "container_file_t"
+
+  tasks:
+    - name: Ensure base dir exists
+      ansible.builtin.file:
+        path: "{{ motorcade_nginx_base }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure nginx runtime dirs exist with correct perms
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ motorcade_nginx_runtime_dirs }}"
+
+    - name: Ensure semanage is available (for fcontext)
+      ansible.builtin.package:
+        name: policycoreutils-python-utils
+        state: present
+
+    - name: Set SELinux fcontext for nginx runtime dirs (persistent)
+      ansible.builtin.command: >
+        semanage fcontext -a -t {{ motorcade_selinux_type }} "{{ motorcade_nginx_base }}(/.*)?"
+      register: fcontext_add
+      changed_when: fcontext_add.rc == 0
+      failed_when: false
+
+    - name: Apply SELinux labels to nginx runtime dirs
+      ansible.builtin.command: "restorecon -Rv {{ motorcade_nginx_base }}"
+      register: restorecon_out
+      changed_when: false
+      failed_when: false
+
+    # --- FACTS ONLY: mount type/options (tells us if chown/set*id can work) ---
+    - name: Show mount details for nginx cache path (facts)
+      ansible.builtin.command: "findmnt -T {{ motorcade_nginx_base }}/cache -o TARGET,SOURCE,FSTYPE,OPTIONS"
+      register: mnt_cache
+      changed_when: false
+      failed_when: false
+
+    - name: Print mount details (facts)
+      ansible.builtin.debug:
+        var: mnt_cache.stdout
+
+    - name: Show labels + perms (facts)
+      ansible.builtin.command: "find {{ motorcade_nginx_base }} -maxdepth 2 -mindepth 0 -exec ls -ldZ {} \\;"
+      register: ls_z
+      changed_when: false
+
+    - name: Print label output (facts)
+      ansible.builtin.debug:
+        var: ls_z.stdout_lines
