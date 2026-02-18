@@ -1,0 +1,108 @@
+---
+- name: Provision Keycloak DB objects in RDS PostgreSQL (STIG-friendly)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+  vars:
+    rds_ca_bundle_path: /etc/motorcade/pki/aws-rds-global-bundle.pem
+
+  tasks:
+    - name: Assert required secret IDs are set
+      ansible.builtin.assert:
+        that:
+          - rds_admin_secret_id | length > 0
+          - keycloak_db_secret_id | length > 0
+        fail_msg: "Missing rds_admin_secret_id or keycloak_db_secret_id in inventory/group_vars."
+
+    - name: Ensure psycopg2 is installed (required for community.postgresql)
+      ansible.builtin.package:
+        name:
+          - python3-psycopg2
+        state: present
+
+    - name: Install AWS RDS global CA bundle (for verify-full)
+      ansible.builtin.get_url:
+        url: "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+        dest: "{{ rds_ca_bundle_path }}"
+        mode: "0644"
+      register: rds_ca_fetch
+
+    - name: Fetch RDS admin secret JSON (SecretString)
+      ansible.builtin.command:
+        argv:
+          - aws
+          - secretsmanager
+          - get-secret-value
+          - --secret-id
+          - "{{ rds_admin_secret_id }}"
+          - --query
+          - SecretString
+          - --output
+          - text
+      register: rds_admin_raw
+      changed_when: false
+      no_log: true
+
+    - name: Fetch Keycloak service DB secret JSON (SecretString)
+      ansible.builtin.command:
+        argv:
+          - aws
+          - secretsmanager
+          - get-secret-value
+          - --secret-id
+          - "{{ keycloak_db_secret_id }}"
+          - --query
+          - SecretString
+          - --output
+          - text
+      register: kc_db_raw
+      changed_when: false
+      no_log: true
+
+    - name: Parse secrets
+      ansible.builtin.set_fact:
+        rds_admin: "{{ rds_admin_raw.stdout | from_json }}"
+        kc_db: "{{ kc_db_raw.stdout | from_json }}"
+      no_log: true
+
+    - name: Assert Keycloak DB canonical schema
+      ansible.builtin.assert:
+        that:
+          - kc_db.host is defined
+          - kc_db.port is defined
+          - kc_db.dbname is defined
+          - kc_db.username is defined
+          - kc_db.password is defined
+        fail_msg: "Keycloak DB secret must include host, port, dbname, username, password."
+
+    - name: Create/ensure Keycloak DB role exists (RDS, TLS verify-full)
+      community.postgresql.postgresql_user:
+        login_host: "{{ kc_db.host }}"
+        login_port: "{{ kc_db.port }}"
+        login_db: "postgres"
+        login_user: "{{ rds_admin.username | default(rds_admin.user) }}"
+        login_password: "{{ rds_admin.password }}"
+        ssl_mode: "verify-full"
+        ca_cert: "{{ rds_ca_bundle_path }}"
+        name: "{{ kc_db.username }}"
+        password: "{{ kc_db.password }}"
+        role_attr_flags: "LOGIN"
+        state: present
+        # RDS can't read pg_authid; avoid false “changed every run” churn.
+        no_password_changes: true
+      no_log: true
+
+    - name: Create/ensure Keycloak database exists (owned by role)
+      community.postgresql.postgresql_db:
+        login_host: "{{ kc_db.host }}"
+        login_port: "{{ kc_db.port }}"
+        login_db: "postgres"
+        login_user: "{{ rds_admin.username | default(rds_admin.user) }}"
+        login_password: "{{ rds_admin.password }}"
+        ssl_mode: "verify-full"
+        ca_cert: "{{ rds_ca_bundle_path }}"
+        name: "{{ kc_db.dbname }}"
+        owner: "{{ kc_db.username }}"
+        state: present
+      no_log: true
