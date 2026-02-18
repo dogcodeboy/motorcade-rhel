@@ -207,9 +207,38 @@
         kc_admin_secret: "{{ kc_admin_secret_raw.stdout | from_json }}"
       no_log: true
 
+    
+    - name: Assert Keycloak secret schema has required keys (no values printed)
+      ansible.builtin.assert:
+        that:
+          # DB secret
+          - kc_db_secret is mapping
+          - (kc_db_secret.username is defined) or (kc_db_secret.user is defined)
+          - kc_db_secret.password is defined
+          - (kc_db_secret.host is defined) or (kc_db_secret.hostname is defined) or (kc_db_secret.endpoint is defined)
+          # Admin secret
+          - kc_admin_secret is mapping
+          - kc_admin_secret.password is defined
+        fail_msg: >
+          Secret JSON schema mismatch. Expected DB keys: host/hostname/endpoint, username/user, password
+          and Admin keys: password (username/user optional). Fix Secrets Manager SecretString JSON.
+
+    - name: Normalize Keycloak secret schema for templates
+      ansible.builtin.set_fact:
+        kc_db:
+          host: "{{ kc_db_secret.host | default(kc_db_secret.hostname) | default(kc_db_secret.endpoint) }}"
+          port: "{{ kc_db_secret.port | default(5432) }}"
+          dbname: "{{ kc_db_secret.dbname | default(kc_db_secret.dbName) | default('keycloak') }}"
+          username: "{{ kc_db_secret.username | default(kc_db_secret.user) }}"
+          password: "{{ kc_db_secret.password }}"
+        kc_admin:
+          username: "{{ (kc_admin_secret.username | default(kc_admin_secret.user)) | default('admin') }}"
+          password: "{{ kc_admin_secret.password }}"
+      no_log: true
+
     - name: Render role template into env text (in-memory only)
       ansible.builtin.set_fact:
-        keycloak_runtime_env_text: "{{ lookup('template', role_path ~ '/templates/keycloak.env.j2') }}"
+        keycloak_runtime_env_text: "{{ lookup('template', 'keycloak.env.j2') }}"
       no_log: true
 
     - name: Parse env text into dict for Ansible environment injection
