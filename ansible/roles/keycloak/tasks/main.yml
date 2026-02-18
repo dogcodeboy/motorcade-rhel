@@ -301,9 +301,12 @@
       --replace
       --name {{ keycloak_container_name }}
       --network {{ keycloak_network_name }}
-      --read-only
+
       --tmpfs /run:rw,noexec,nosuid,nodev
       --tmpfs /tmp:rw,noexec,nosuid,nodev
+      --tmpfs /opt/keycloak/.cache:rw,noexec,nosuid,nodev
+      --tmpfs /opt/keycloak/lib/quarkus:rw,noexec,nosuid,nodev
+      --tmpfs /opt/keycloak/conf:rw,noexec,nosuid,nodev
       --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:Z
       --cap-drop=ALL
       --pids-limit 200
