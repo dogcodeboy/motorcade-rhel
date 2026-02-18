@@ -160,6 +160,8 @@
         that:
           - keycloak_db_secret_id | length > 0
           - keycloak_admin_secret_id | length > 0
+          - keycloak_hostname | length > 0
+          - keycloak_proxy_headers | length > 0
         fail_msg: >
           Missing secret IDs. Set keycloak_db_secret_id and keycloak_admin_secret_id
           in inventory/group_vars for this environment.
@@ -308,7 +310,7 @@
       --memory 1g
       -p 127.0.0.1:8081:8080
       {{ keycloak_image }}
-      start
+      start --hostname {{ keycloak_hostname }} --http-enabled true --proxy-headers {{ keycloak_proxy_headers }}
   changed_when: true
   when:
     - keycloak_container_exists.rc != 0
@@ -371,7 +373,7 @@
       --memory 1g
       -p 127.0.0.1:8081:8080
       {{ keycloak_image }}
-      start --optimized
+      start --optimized --hostname {{ keycloak_hostname }} --http-enabled true --proxy-headers {{ keycloak_proxy_headers }}
   changed_when: true
   when:
     - keycloak_container_exists.rc != 0
