@@ -1,0 +1,11 @@
+---
+- name: Keycloak one-time bootstrap admin (do not use for steady-state)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+  vars:
+    # IMPORTANT: Set these at runtime via --extra-vars or via AWS retrieval on host.
+    # Do NOT commit real values.
+    keycloak_bootstrap_enabled: true
+  roles:
+    - role: keycloak
