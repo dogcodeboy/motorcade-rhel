@@ -62,15 +62,19 @@ Root cause:
 
 ---
 
-# 4. Immediate Runtime Remediation
+# 4. Immediate Runtime Remediation (Evidence-Based)
 
-Executed:
+Executed (runtime, no repo edits):
 
-chown -R 1000:0 /srv/motorcade/keycloak/data  
-chmod 0750 /srv/motorcade/keycloak/data  
-mkdir -p /srv/motorcade/keycloak/data/tmp  
-chmod 0770 /srv/motorcade/keycloak/data/tmp  
-restorecon -Rv /srv/motorcade/keycloak/data  
+- Ensure directory ownership supports Keycloak UID:
+  - chown -R 1000:0 /srv/motorcade/keycloak/data
+- Ensure restrictive permissions:
+  - chmod 0750 /srv/motorcade/keycloak/data
+- Ensure writable tmp exists:
+  - mkdir -p /srv/motorcade/keycloak/data/tmp
+  - chmod 0770 /srv/motorcade/keycloak/data/tmp
+- Restore SELinux contexts:
+  - restorecon -Rv /srv/motorcade/keycloak/data
 
 Result:
 
@@ -81,13 +85,11 @@ Result:
 
 ---
 
-# 5. Permanent STIG-Compliant Codification
+# 5. Permanent STIG-Compliant Codification (motorcade-rhel)
 
-All fixes codified in motorcade-rhel main.yml.
+Fixes codified in the controlling repo and role (motorcade-rhel), so rebuilds do not regress.
 
-## 5.1 Deterministic Directory Creation
-
-Before container start:
+## 5.1 Deterministic Directory Creation (before container start)
 
 - /srv/motorcade/keycloak owned root:root (0750)
 - /srv/motorcade/keycloak/data owned 1000:0 (0750)
@@ -97,50 +99,46 @@ Rationale:
 
 - Prevent runtime permission failures
 - Enforce least privilege
-- Comply with STIG file permission controls
+- Align with STIG file permission controls
 
 ---
 
-## 5.2 Persistent SELinux Labeling
+## 5.2 Persistent SELinux Labeling (durable across relabels)
 
-Added persistent fcontext rule:
+Persistent fcontext rule:
 
-semanage fcontext -a -t container_file_t "/srv/motorcade/keycloak/data(/.*)?"
-restorecon -Rv /srv/motorcade/keycloak/data
+- semanage fcontext -a -t container_file_t "/srv/motorcade/keycloak/data(/.*)?"
+- restorecon -Rv /srv/motorcade/keycloak/data
 
 Rationale:
 
-- Prevent MCS drift
-- Avoid relabel failures during redeploy
-- Preserve mandatory access control integrity
+- Prevent access regressions after relabel
+- Preserve MAC integrity
+- Avoid weakening SELinux policy
+
+Note: if the rule exists, use semanage fcontext -m to modify.
 
 ---
 
 ## 5.3 Stable Mount Strategy
 
-Changed volume mount from:
-
-:Z
-
-to:
-
-:z
+Host path /srv/motorcade/keycloak/data is mounted to /opt/keycloak/data using :z
 
 Rationale:
 
-- :Z rewrites labels per-container
-- :z shares label safely
-- Prevents intermittent EACCES failures
+- :Z assigns a private label per container run and can cause drift across workflows
+- :z provides shared labeling appropriate for persistent data volumes
+- Avoids intermittent EACCES/500 failures
 
 ---
 
 # 6. Container Hardening Preserved
 
-The following controls remain enforced:
+Controls remain enforced:
 
 - ReadonlyRootfs=true
 - --cap-drop=ALL
-- tmpfs isolation
+- tmpfs isolation for non-persistent writable paths
 - SELinux Enforcing
 - Non-root execution (UID 1000)
 - TLS-only ingress
@@ -155,31 +153,28 @@ Verified:
 
 - HTTP → HTTPS redirect enforced
 - HSTS enabled
-- ACME path accessible
-- Certs labeled container_file_t
-- nginx -t clean
-- Port 443 listening
-- HTTP/2 operational
+- Admin console reachable via sso.motorcade.vip
+- ACME path reachable for HTTP-01
+- SELinux + cert mount issues resolved on Nginx side (separate workstream)
 
 ---
 
-# 8. Final Validation Evidence
+# 8. Validation Evidence (Functional)
 
-Confirmed:
+Confirmed endpoints are healthy:
 
 - /realms/master → 200
 - /.well-known/openid-configuration → 200
 - Admin JS bundles → 200
 - Writable tmp path functional
 - HTTPS login page renders
-- Admin console fully loads
 
 ---
 
-# 9. Compliance Mapping
+# 9. Compliance Mapping (High-Level)
 
 | Control Area | Implementation |
-|--------------|---------------|
+|--------------|----------------|
 | AC-6 | Non-root container execution |
 | CM-6 | Codified configuration management |
 | SI-7 | Immutable root filesystem |
@@ -193,7 +188,7 @@ Confirmed:
 
 Repo: motorcade-rhel  
 File Modified: main.yml  
-Commit: 2b3ff8e — Keycloak: ensure writable data/tmp (uid 1000) + persistent SELinux label
+Commit (codification): 2b3ff8e — Keycloak: ensure writable data/tmp (uid 1000) + persistent SELinux label
 
 ---
 
@@ -201,20 +196,19 @@ Commit: 2b3ff8e — Keycloak: ensure writable data/tmp (uid 1000) + persistent S
 
 Future rebuilds MUST:
 
-- Preserve UID 1000 ownership
-- Maintain fcontext rule
-- Avoid :Z on data mounts
-- Keep SELinux in Enforcing mode
+- Preserve UID 1000 ownership of /srv/motorcade/keycloak/data
+- Maintain fcontext rule for /srv/motorcade/keycloak/data(/.*)?
+- Use :z (not :Z) for the persistent data mount
+- Keep SELinux Enforcing mode
 - Maintain ReadonlyRootfs
 
 ---
 
 # Status
 
-Keycloak SSO deployment is:
+Keycloak SSO is:
 
 Operational  
-HTTPS enforced  
 SELinux compliant  
 STIG-aligned  
 Rebuild-safe
