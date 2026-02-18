@@ -26,3 +26,6 @@
 ## Do not do this in runbooks
 - Do not dump container env values from `podman inspect`.
 - Keep evidence commands limited to `ps`, `logs`, `ss`, and health checks.
+
+## See also
+- docs/keycloak/00_index.md
