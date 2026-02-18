@@ -1,0 +1,4 @@
+---
+# External URL users hit (TLS terminated at Nginx/ALB). Keycloak itself listens HTTP on loopback.
+keycloak_hostname: "https://sso.motorcade.vip"
+keycloak_proxy_headers: "xforwarded"
