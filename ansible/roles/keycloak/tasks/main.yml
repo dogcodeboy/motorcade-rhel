@@ -57,6 +57,56 @@
     group: root
     mode: "0700"
 
+- name: Ensure Keycloak data directories exist (readonly rootfs compatible)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: /srv/motorcade/keycloak
+      owner: root
+      group: root
+      mode: "0750"
+    - path: /srv/motorcade/keycloak/data
+      owner: "1000"
+      group: "0"
+      mode: "0750"
+    - path: /srv/motorcade/keycloak/data/tmp
+      owner: "1000"
+      group: "0"
+      mode: "0770"
+
+- name: Ensure SELinux tools are present for Keycloak data labeling
+  ansible.builtin.package:
+    name:
+      - policycoreutils-python-utils
+    state: present
+  failed_when: false
+
+- name: Persist SELinux context for Keycloak data path
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if semanage fcontext -l | grep -Fq "/srv/motorcade/keycloak/data(/.*)?"; then
+      semanage fcontext -m -t container_file_t "/srv/motorcade/keycloak/data(/.*)?"
+    else
+      semanage fcontext -a -t container_file_t "/srv/motorcade/keycloak/data(/.*)?"
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+
+- name: Apply SELinux labels to Keycloak data path
+  ansible.builtin.command:
+    argv:
+      - restorecon
+      - -Rv
+      - /srv/motorcade/keycloak/data
+  changed_when: false
+  failed_when: false
+
 - name: Ensure Keycloak Podman network exists
   ansible.builtin.command:
     cmd: "{{ keycloak_podman_bin }} network exists {{ keycloak_network_name }}"
@@ -269,7 +319,7 @@
       --env KC_HOSTNAME
       --env KC_HOSTNAME_STRICT
       --env KC_HTTP_ENABLED
-      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:Z
+      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:z
       --tmpfs /tmp:rw,noexec,nosuid,nodev
       --tmpfs /run:rw,noexec,nosuid,nodev
       {{ keycloak_image }}
@@ -360,7 +410,7 @@
       --tmpfs /opt/keycloak/.cache:rw,noexec,nosuid,nodev
       --tmpfs /opt/keycloak/lib/quarkus:rw,noexec,nosuid,nodev
       --tmpfs /opt/keycloak/conf:rw,noexec,nosuid,nodev
-      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:Z
+      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:z
       --cap-drop=ALL
       --pids-limit 200
       --memory 1g
@@ -434,7 +484,7 @@
       --read-only
       --tmpfs /run:rw,noexec,nosuid,nodev
       --tmpfs /tmp:rw,noexec,nosuid,nodev
-      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:Z
+      --volume /srv/motorcade/keycloak/data:/opt/keycloak/data:z
       --cap-drop=ALL
       --pids-limit 200
       --memory 1g
