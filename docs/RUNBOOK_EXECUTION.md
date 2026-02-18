@@ -6,6 +6,11 @@
 - Always run with Vault password file: `--vault-password-file ~/.ansible_vault_pass`
 - Always use the correct inventory for the environment.
 
+## Preflight dependencies
+Install required Ansible collections before running playbooks:
+
+`ansible-galaxy collection install -r ansible/collections/requirements.yml --force`
+
 ## Environments
 - **prod** inventory: `ansible/inventories/prod/hosts.ini`
 - **staging** inventory: `ansible/inventories/staging/hosts.ini`
