@@ -1,0 +1,8 @@
+---
+- name: Motorcade - Keycloak bringup (dirs -> build -> start)
+  hosts: motorcade
+  become: true
+  gather_facts: true
+
+- import_playbook: 19_keycloak_runtime_dirs.yml
+- import_playbook: 20_keycloak.yml
