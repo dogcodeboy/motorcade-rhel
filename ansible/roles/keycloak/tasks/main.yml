@@ -294,6 +294,49 @@
     path: "/var/lib/motorcade/keycloak/.first_start_complete"
   register: keycloak_first_start_marker
 
+- name: Build optimized Keycloak image (kc.sh build, no secrets)
+  block:
+    - name: Ensure Keycloak image build directory exists
+      ansible.builtin.file:
+        path: "{{ keycloak_image_build_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Render optimized Containerfile (no secrets)
+      ansible.builtin.template:
+        src: "Containerfile.optimized.j2"
+        dest: "{{ keycloak_containerfile_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Check whether optimized Keycloak image already exists
+      ansible.builtin.command:
+        argv:
+          - "{{ keycloak_podman_bin }}"
+          - image
+          - exists
+          - "{{ keycloak_optimized_image }}"
+      register: keycloak_optimized_image_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Build optimized Keycloak image (no secrets baked)
+      ansible.builtin.command:
+        argv:
+          - "{{ keycloak_podman_bin }}"
+          - build
+          - -t
+          - "{{ keycloak_optimized_image }}"
+          - -f
+          - "{{ keycloak_containerfile_path }}"
+          - "{{ keycloak_image_build_dir }}"
+      when: keycloak_optimized_image_exists.rc != 0
+      changed_when: true
+
+
 - name: Create Keycloak container (first start bootstrap, no optimized)
   ansible.builtin.command:
     cmd: >-
@@ -301,6 +344,16 @@
       --replace
       --name {{ keycloak_container_name }}
       --network {{ keycloak_network_name }}
+      --env KC_DB_PASSWORD
+      --env KC_DB_USERNAME
+      --env KC_DB_URL
+      --env KC_HTTP_ENABLED
+      --env KC_HOSTNAME_STRICT
+      --env KC_HOSTNAME
+      --env KC_PROXY
+      --env KC_DB
+      --env KC_BOOTSTRAP_ADMIN_PASSWORD
+      --env KC_BOOTSTRAP_ADMIN_USERNAME
 
       --tmpfs /run:rw,noexec,nosuid,nodev
       --tmpfs /tmp:rw,noexec,nosuid,nodev
@@ -314,6 +367,7 @@
       -p 127.0.0.1:8081:8080
       {{ keycloak_image }}
       start --hostname {{ keycloak_hostname }} --http-enabled true --proxy-headers {{ keycloak_proxy_headers }}
+  environment: "{{ keycloak_runtime_env }}"
   changed_when: true
   when:
     - keycloak_container_exists.rc != 0
@@ -367,6 +421,16 @@
       --replace
       --name {{ keycloak_container_name }}
       --network {{ keycloak_network_name }}
+      --env KC_DB_PASSWORD
+      --env KC_DB_USERNAME
+      --env KC_DB_URL
+      --env KC_HTTP_ENABLED
+      --env KC_HOSTNAME_STRICT
+      --env KC_HOSTNAME
+      --env KC_PROXY
+      --env KC_DB
+      --env KC_BOOTSTRAP_ADMIN_PASSWORD
+      --env KC_BOOTSTRAP_ADMIN_USERNAME
       --read-only
       --tmpfs /run:rw,noexec,nosuid,nodev
       --tmpfs /tmp:rw,noexec,nosuid,nodev
@@ -375,8 +439,9 @@
       --pids-limit 200
       --memory 1g
       -p 127.0.0.1:8081:8080
-      {{ keycloak_image }}
+      {{ keycloak_optimized_image }}
       start --optimized --hostname {{ keycloak_hostname }} --http-enabled true --proxy-headers {{ keycloak_proxy_headers }}
+  environment: "{{ keycloak_runtime_env }}"
   changed_when: true
   when:
     - keycloak_container_exists.rc != 0

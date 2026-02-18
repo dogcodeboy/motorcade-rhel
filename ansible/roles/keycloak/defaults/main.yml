@@ -33,3 +33,8 @@ keycloak_admin_secret_arn: ""
 # AWS Secrets Manager secret IDs (set in inventory/group_vars)
 keycloak_db_secret_id: ""
 keycloak_admin_secret_id: ""
+
+# Optimized Keycloak image build (no secrets baked)
+keycloak_optimized_image: "localhost/motorcade-keycloak:optimized"
+keycloak_image_build_dir: "/var/lib/motorcade/keycloak/image"
+keycloak_containerfile_path: "{{ keycloak_image_build_dir }}/Containerfile"

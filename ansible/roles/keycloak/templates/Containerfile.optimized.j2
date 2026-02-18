@@ -1,0 +1,9 @@
+FROM {{ keycloak_image }}
+
+# Build-time (persisted) options: NON-SENSITIVE ONLY
+# Do NOT include DB URL/username/password or admin creds here.
+ENV KC_DB=postgres
+ENV KC_HEALTH_ENABLED=true
+ENV KC_METRICS_ENABLED=true
+
+RUN /opt/keycloak/bin/kc.sh build --db=postgres
