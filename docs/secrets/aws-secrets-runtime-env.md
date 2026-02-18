@@ -61,6 +61,13 @@ Admin/user example:
 }
 ```
 
+## Important DB Secret Source Rule
+
+- Do not use AWS-managed `rds!db-*` rotation secrets directly for container runtime unless you also provide host metadata from another source.
+- Standard Motorcade pattern is a service-specific DB secret with canonical keys:
+`host`, `port`, `dbname`, `username`, `password`.
+- This avoids schema drift and keeps role logic deterministic across environments.
+
 ## Ansible Pattern (Host-side fetch + in-memory injection)
 1) Inventory/group_vars stores only secret IDs
 

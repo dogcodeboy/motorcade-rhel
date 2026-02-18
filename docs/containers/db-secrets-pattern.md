@@ -29,6 +29,11 @@ DB SecretString JSON:
 - username
 - password
 
+## Source Guardrail
+- Do not point service roles directly at AWS-managed `rds!db-*` rotation secrets unless host is provided separately.
+- Preferred approach is a service-specific secret that already contains canonical keys:
+`host`, `port`, `dbname`, `username`, `password`.
+
 ## Minimal Safe Evidence Commands (Runbooks)
 - `podman ps -a --filter name=<name>`
 - `podman logs --tail 150 <name>`
