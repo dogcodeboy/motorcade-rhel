@@ -21,6 +21,14 @@
           - python3-psycopg2
         state: present
 
+    - name: Ensure RDS CA bundle parent directory exists
+      ansible.builtin.file:
+        path: "{{ rds_ca_bundle_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
     - name: Install AWS RDS global CA bundle (for verify-full)
       ansible.builtin.get_url:
         url: "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
