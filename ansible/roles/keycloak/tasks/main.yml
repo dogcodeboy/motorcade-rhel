@@ -479,8 +479,6 @@
       --env KC_HOSTNAME
       --env KC_PROXY
       --env KC_DB
-      --env KC_BOOTSTRAP_ADMIN_PASSWORD
-      --env KC_BOOTSTRAP_ADMIN_USERNAME
       --read-only
       --tmpfs /run:rw,noexec,nosuid,nodev
       --tmpfs /tmp:rw,noexec,nosuid,nodev
