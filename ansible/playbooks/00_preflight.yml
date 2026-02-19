@@ -31,11 +31,17 @@
         cmd: cat /proc/sys/crypto/fips_enabled
       register: motorcade_fips_state
       changed_when: false
+      when: not ansible_check_mode
 
-    - name: Assert FIPS mode is enabled
+    - name: Assert FIPS is enabled
       ansible.builtin.assert:
         that:
-          - motorcade_fips_state.stdout | trim == "1"
+          - ansible_facts is defined
+          - >-
+            (ansible_fips | default(false) | bool)
+            or (ansible_facts.get('ansible_fips', false) | bool)
+            or (ansible_facts.get('fips', false) | bool)
+            or ((ansible_facts.get('ansible_cmdline', {}).get('fips', '') | string) == '1')
         fail_msg: FIPS is not enabled. Rebuild image with FIPS mode enabled.
 
     - name: Check Podman candidate paths
