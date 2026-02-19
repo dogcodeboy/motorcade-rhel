@@ -1,0 +1,8 @@
+---
+motorcade_nginx_domains:
+  - staging.motorcade.vip
+  - sso-staging.motorcade.vip
+  - admin-staging.motorcade.vip
+  - mcp-staging.motorcade.vip
+
+keycloak_hostname: "https://sso-staging.motorcade.vip"

@@ -1,0 +1,6 @@
+---
+motorcade_domains:
+  site: staging.motorcade.vip
+  sso: sso-staging.motorcade.vip
+  admin: admin-staging.motorcade.vip
+  mcp: mcp-staging.motorcade.vip
