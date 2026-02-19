@@ -17,7 +17,7 @@ keycloak_db_name: keycloak
 keycloak_db_user: keycloak
 keycloak_db_secret_arn: ""
 
-keycloak_hostname: sso.motorcade.vip
+keycloak_hostname: ""
 keycloak_hostname_strict: true
 
 keycloak_runtime_dir: /run/motorcade/keycloak
