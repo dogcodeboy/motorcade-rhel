@@ -59,9 +59,14 @@
           - motorcade_podman_bin | length > 0
         fail_msg: Podman binary not found. Rebuild image with Podman installed.
 
-    - name: Validate Podman binary
-      ansible.builtin.command:
-        cmd: "{{ motorcade_podman_bin }} --version"
+    - name: Set podman bin alias
+      ansible.builtin.set_fact:
+        podman_bin: "{{ motorcade_podman_bin }}"
+      changed_when: false
+
+    - name: "Preflight | podman version (root)"
+      ansible.builtin.command: "{{ podman_bin | default('/usr/bin/podman') }} --version"
+      become: true
       changed_when: false
 
     - name: Check required directories exist
