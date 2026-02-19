@@ -3,9 +3,80 @@
   ansible.builtin.assert:
     that:
       - motorcade_nginx_tls_cert_dir | length > 0
-      - motorcade_nginx_domains | select('match','^motorcade\\.vip$') | list | length == 1
-      - motorcade_nginx_domains | select('match','^sso\\.motorcade\\.vip$') | list | length == 1
-    fail_msg: "Missing required vars: motorcade_nginx_domains and/or motorcade_nginx_tls_cert_dir."
+      - (motorcade_nginx_domains | length > 0) or (motorcade_nginx_vhosts | length > 0)
+    fail_msg: >-
+      Missing required vars: define motorcade_nginx_domains or motorcade_nginx_vhosts,
+      and set motorcade_nginx_tls_cert_dir.
+
+- name: Initialize effective proxy upstream map
+  ansible.builtin.set_fact:
+    motorcade_nginx_proxy_upstreams_effective: "{{ motorcade_nginx_proxy_upstreams | default({}) }}"
+  changed_when: false
+
+- name: Include Keycloak upstream in effective proxy map
+  ansible.builtin.set_fact:
+    motorcade_nginx_proxy_upstreams_effective: >-
+      {{
+        motorcade_nginx_proxy_upstreams_effective |
+        combine({
+          (keycloak_hostname | regex_replace('^https?://', '') | regex_replace('/.*$', '')): motorcade_nginx_keycloak_upstream
+        })
+      }}
+  when: keycloak_hostname | default('') | length > 0
+  changed_when: false
+
+- name: Use explicit vhost definitions when provided
+  ansible.builtin.set_fact:
+    motorcade_nginx_effective_vhosts: "{{ motorcade_nginx_vhosts }}"
+  when: motorcade_nginx_vhosts | length > 0
+  changed_when: false
+
+- name: Initialize generated vhost definitions
+  ansible.builtin.set_fact:
+    motorcade_nginx_effective_vhosts: []
+  when: motorcade_nginx_vhosts | length == 0
+  changed_when: false
+
+- name: Generate vhost definitions from domain list
+  ansible.builtin.set_fact:
+    motorcade_nginx_effective_vhosts: >-
+      {{
+        motorcade_nginx_effective_vhosts + [ {
+          'name': item,
+          'server_name': item,
+          'cert_name': item,
+          'kind': ((item in motorcade_nginx_proxy_upstreams_effective) | ternary('proxy', 'static')),
+          'upstream': (motorcade_nginx_proxy_upstreams_effective[item] | default('')),
+          'root': motorcade_nginx_static_root
+        } ]
+      }}
+  loop: "{{ motorcade_nginx_domains }}"
+  when: motorcade_nginx_vhosts | length == 0
+
+- name: Assert vhost definitions are valid
+  ansible.builtin.assert:
+    that:
+      - item.server_name is defined
+      - item.server_name | length > 0
+      - item.kind | default('static') in ['static', 'proxy']
+      - (item.kind | default('static') != 'proxy') or (item.upstream is defined and item.upstream | length > 0)
+    fail_msg: "Invalid vhost definition: {{ item }}"
+  loop: "{{ motorcade_nginx_effective_vhosts }}"
+
+- name: Initialize cert domain list
+  ansible.builtin.set_fact:
+    motorcade_nginx_cert_domains: []
+  changed_when: false
+
+- name: Build cert domain list from effective vhosts
+  ansible.builtin.set_fact:
+    motorcade_nginx_cert_domains: "{{ motorcade_nginx_cert_domains + [ item.cert_name | default(item.server_name) ] }}"
+  loop: "{{ motorcade_nginx_effective_vhosts }}"
+
+- name: De-duplicate cert domain list
+  ansible.builtin.set_fact:
+    motorcade_nginx_cert_domains: "{{ motorcade_nginx_cert_domains | unique }}"
+  changed_when: false
 
 - name: Ensure audit directory exists
   ansible.builtin.file:
@@ -23,25 +94,35 @@
     group: root
     mode: "0750"
 
+- name: Generate self-signed certs when enabled
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -nodes -newkey rsa:2048
+      -keyout {{ motorcade_nginx_tls_cert_dir }}/{{ item }}.key
+      -out {{ motorcade_nginx_tls_cert_dir }}/{{ item }}.crt
+      -days {{ motorcade_nginx_selfsigned_days }}
+      -subj /CN={{ item }}
+  args:
+    creates: "{{ motorcade_nginx_tls_cert_dir }}/{{ item }}.crt"
+  loop: "{{ motorcade_nginx_cert_domains }}"
+  when: motorcade_nginx_selfsigned | bool
+
 - name: Verify required cert/key files exist
   ansible.builtin.stat:
-    path: "{{ item }}"
-  loop:
-    - "{{ motorcade_nginx_tls_cert_dir }}/motorcade.vip.crt"
-    - "{{ motorcade_nginx_tls_cert_dir }}/motorcade.vip.key"
-    - "{{ motorcade_nginx_tls_cert_dir }}/sso.motorcade.vip.crt"
-    - "{{ motorcade_nginx_tls_cert_dir }}/sso.motorcade.vip.key"
+    path: "{{ motorcade_nginx_tls_cert_dir }}/{{ item.0 }}.{{ item.1 }}"
+  loop: "{{ motorcade_nginx_cert_domains | product(['crt', 'key']) | list }}"
   register: cert_stats
 
 - name: Fail if any TLS asset is missing
   ansible.builtin.assert:
     that:
       - item.stat.exists
-    fail_msg: "Missing TLS file: {{ item.item }}"
+    fail_msg: "Missing TLS file: {{ motorcade_nginx_tls_cert_dir }}/{{ item.item.0 }}.{{ item.item.1 }}"
   loop: "{{ cert_stats.results }}"
 
-- name: Ensure podman exists
-  ansible.builtin.command: { cmd: "command -v podman" }
+- name: Resolve podman binary
+  ansible.builtin.command:
+    cmd: "command -v {{ podman_bin | default('podman') }}"
   register: podman_path
   changed_when: false
 
@@ -52,11 +133,14 @@
 
 - name: Create rendered nginx config staging dir
   ansible.builtin.file:
-    path: /etc/motorcade/nginx
+    path: "{{ item }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
+  loop:
+    - /etc/motorcade/nginx
+    - /etc/motorcade/nginx/conf.d
 
 - name: Render nginx.conf
   ansible.builtin.template:
@@ -77,16 +161,34 @@
     - { src: "snippets/ssl_params.conf.j2", dest: "ssl_params.conf" }
     - { src: "snippets/security_headers.conf.j2", dest: "security_headers.conf" }
 
-- name: Render vhosts
+- name: Build expected vhost filenames
+  ansible.builtin.set_fact:
+    motorcade_nginx_expected_conf_files: "{{ (motorcade_nginx_expected_conf_files | default([])) + [ (item.server_name + '.conf') ] }}"
+  loop: "{{ motorcade_nginx_effective_vhosts }}"
+  changed_when: false
+
+- name: Find existing vhost conf files
+  ansible.builtin.find:
+    paths: /etc/motorcade/nginx/conf.d
+    patterns: "*.conf"
+    file_type: file
+  register: motorcade_nginx_existing_conf_files
+
+- name: Remove stale vhost conf files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ motorcade_nginx_existing_conf_files.files }}"
+  when: (item.path | basename) not in motorcade_nginx_expected_conf_files
+
+- name: Render vhosts from inventory-driven definitions
   ansible.builtin.template:
-    src: "{{ item.src }}"
-    dest: "/etc/motorcade/nginx/{{ item.dest }}"
+    src: "conf.d/vhost.conf.j2"
+    dest: "/etc/motorcade/nginx/conf.d/{{ item.server_name }}.conf"
     owner: root
     group: root
     mode: "0644"
-  loop:
-    - { src: "conf.d/motorcade.vip.conf.j2", dest: "motorcade.vip.conf" }
-    - { src: "conf.d/sso.motorcade.vip.conf.j2", dest: "sso.motorcade.vip.conf" }
+  loop: "{{ motorcade_nginx_effective_vhosts }}"
 
 - name: Remove existing nginx container (idempotent recreate)
   ansible.builtin.command:
@@ -103,8 +205,7 @@
       -v /etc/motorcade/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
       -v /etc/motorcade/nginx/ssl_params.conf:/etc/nginx/snippets/ssl_params.conf:ro,Z
       -v /etc/motorcade/nginx/security_headers.conf:/etc/nginx/snippets/security_headers.conf:ro,Z
-      -v /etc/motorcade/nginx/motorcade.vip.conf:/etc/nginx/conf.d/motorcade.vip.conf:ro,Z
-      -v /etc/motorcade/nginx/sso.motorcade.vip.conf:/etc/nginx/conf.d/sso.motorcade.vip.conf:ro,Z
+      -v /etc/motorcade/nginx/conf.d:/etc/nginx/conf.d:ro,Z
       -v {{ motorcade_nginx_tls_cert_dir }}:/etc/nginx/certs:ro,Z
       {{ motorcade_nginx_image }}
   register: nginx_run
