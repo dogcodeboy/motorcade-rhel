@@ -13,4 +13,3 @@ keycloak_hostname: ""
 
 podman_bin_candidates:
   - /usr/bin/podman
-  - /usr/local/bin/podman

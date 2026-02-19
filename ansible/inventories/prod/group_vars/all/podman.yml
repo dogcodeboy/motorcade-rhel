@@ -2,4 +2,3 @@
 podman_bin: /usr/bin/podman
 podman_bin_candidates:
   - /usr/bin/podman
-  - /usr/local/bin/podman

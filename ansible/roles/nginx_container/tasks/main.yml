@@ -123,6 +123,7 @@
 - name: Resolve podman binary
   ansible.builtin.command:
     cmd: "command -v {{ podman_bin | default('podman') }}"
+  become: true
   register: podman_path
   changed_when: false
 
