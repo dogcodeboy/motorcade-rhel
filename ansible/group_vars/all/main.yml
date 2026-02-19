@@ -1,9 +1,7 @@
 ---
 motorcade_timezone: "UTC"
 
-motorcade_nginx_domains:
-  - motorcade.vip
-  - sso.motorcade.vip
+motorcade_nginx_domains: []
 
 motorcade_nginx_tls_cert_dir: /etc/pki/tls/motorcade
 
@@ -11,7 +9,7 @@ keycloak_db_mode: rds
 keycloak_db_port: 5432
 keycloak_db_name: keycloak
 keycloak_db_user: keycloak
-keycloak_hostname: sso.motorcade.vip
+keycloak_hostname: ""
 
 podman_bin_candidates:
   - /usr/bin/podman
