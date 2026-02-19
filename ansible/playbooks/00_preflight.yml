@@ -16,11 +16,14 @@
         cmd: getenforce
       register: motorcade_selinux_state
       changed_when: false
+      when: not ansible_check_mode
 
     - name: Assert SELinux is enforcing
       ansible.builtin.assert:
         that:
-          - motorcade_selinux_state.stdout | trim | lower == "enforcing"
+          - ansible_selinux is defined
+          - ansible_selinux.status | lower == "enabled"
+          - ansible_selinux.mode | lower == "enforcing"
         fail_msg: SELinux is not enforcing. Rebuild image with hardened baseline.
 
     - name: Read kernel FIPS mode
