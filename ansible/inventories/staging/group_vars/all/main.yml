@@ -6,3 +6,4 @@ motorcade_nginx_domains:
   - mcp-staging.motorcade.vip
 
 keycloak_hostname: "https://sso-staging.motorcade.vip"
+keycloak_proxy_headers: "xforwarded"

@@ -1,0 +1,6 @@
+---
+motorcade_domains:
+  site: motorcade.vip
+  sso: sso.motorcade.vip
+  admin: admin.motorcade.vip
+  mcp: mcp.motorcade.vip
