@@ -14,5 +14,5 @@ keycloak_db_user: keycloak
 keycloak_hostname: sso.motorcade.vip
 
 podman_bin_candidates:
-  - /usr/local/bin/podman
   - /usr/bin/podman
+  - /usr/local/bin/podman
