@@ -73,11 +73,13 @@
       ansible.builtin.command: "{{ motorcade_crun_bin }} --version"
       register: crun_version
       changed_when: false
+      when: not ansible_check_mode
 
     - name: Validate Podman runtime selection includes crun
       ansible.builtin.command: "{{ motorcade_podman_bin }} info --debug"
       register: podman_info
       changed_when: false
+      when: not ansible_check_mode
 
     - name: Assert podman reports crun runtime path
       ansible.builtin.assert:
@@ -87,6 +89,7 @@
         fail_msg: >
           Podman debug info did not show crun runtime as expected.
           Check /etc/containers/containers.conf and runtime packaging.
+      when: not ansible_check_mode
 
     - name: Check if Keycloak container exists (optional)
       ansible.builtin.command: "{{ motorcade_podman_bin }} container exists {{ motorcade_keycloak_container_name }}"
