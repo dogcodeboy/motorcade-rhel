@@ -8,6 +8,7 @@ keycloak_image: quay.io/keycloak/keycloak:26.5.3
 
 nginx_http_port: 80
 nginx_https_port: 443
+nginx_use_quadlet: true
 
 motorcade_nginx_domains:
   - motorcade.vip
