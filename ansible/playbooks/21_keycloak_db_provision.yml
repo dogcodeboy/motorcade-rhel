@@ -15,6 +15,11 @@
           - keycloak_db_secret_id | length > 0
         fail_msg: "Missing rds_admin_secret_id or keycloak_db_secret_id in inventory/group_vars."
 
+    - name: Note check-mode behavior
+      ansible.builtin.debug:
+        msg: "Check mode: skipping secret retrieval and dependent Keycloak tasks."
+      when: ansible_check_mode
+
     - name: Ensure psycopg2 is installed (required for community.postgresql)
       ansible.builtin.package:
         name:
@@ -51,6 +56,7 @@
       register: rds_admin_raw
       changed_when: false
       no_log: true
+      when: not ansible_check_mode
 
     - name: Fetch Keycloak service DB secret JSON (SecretString)
       ansible.builtin.command:
@@ -67,12 +73,14 @@
       register: kc_db_raw
       changed_when: false
       no_log: true
+      when: not ansible_check_mode
 
     - name: Parse secrets
       ansible.builtin.set_fact:
         rds_admin: "{{ rds_admin_raw.stdout | from_json }}"
         kc_db: "{{ kc_db_raw.stdout | from_json }}"
       no_log: true
+      when: not ansible_check_mode
 
     - name: Assert Keycloak DB canonical schema
       ansible.builtin.assert:
@@ -83,6 +91,7 @@
           - kc_db.username is defined
           - kc_db.password is defined
         fail_msg: "Keycloak DB secret must include host, port, dbname, username, password."
+      when: not ansible_check_mode
 
     - name: Create/ensure Keycloak DB role exists (RDS, TLS verify-full)
       community.postgresql.postgresql_user:
@@ -100,6 +109,7 @@
         # RDS can't read pg_authid; avoid false “changed every run” churn.
         no_password_changes: true
       no_log: true
+      when: not ansible_check_mode
 
     - name: Create/ensure Keycloak database exists (owned by role)
       community.postgresql.postgresql_db:
@@ -114,3 +124,4 @@
         owner: "{{ kc_db.username }}"
         state: present
       no_log: true
+      when: not ansible_check_mode

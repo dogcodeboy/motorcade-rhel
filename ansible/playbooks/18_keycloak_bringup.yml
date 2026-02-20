@@ -3,6 +3,11 @@
   hosts: motorcade
   become: true
   gather_facts: true
+  tasks:
+    - name: Note check-mode behavior
+      ansible.builtin.debug:
+        msg: "Check mode: skipping secret retrieval and dependent Keycloak tasks."
+      when: ansible_check_mode
 
 - import_playbook: 19_keycloak_runtime_dirs.yml
 - import_playbook: 20_keycloak.yml

@@ -6,14 +6,23 @@
   hosts: all
   become: true
   gather_facts: true
-  roles:
-    - role: keycloak
+  pre_tasks:
+    - name: Note check-mode behavior
+      ansible.builtin.debug:
+        msg: "Check mode: skipping secret retrieval and dependent Keycloak tasks."
+      when: ansible_check_mode
+  tasks:
+    - name: Apply keycloak role
+      ansible.builtin.include_role:
+        name: keycloak
+      when: not ansible_check_mode
   post_tasks:
     - name: Validate Keycloak is listening on loopback (hard gate)
       ansible.builtin.wait_for:
         host: "127.0.0.1"
         port: 8081
         timeout: 60
+      when: not ansible_check_mode
 
     - name: Evidence bundle on failure (logs + inspect)
       ansible.builtin.command: >
@@ -25,3 +34,4 @@
         sudo podman inspect motorcade-keycloak --format "SecurityOpt={{'{{'}}json .HostConfig.SecurityOpt{{'}}'}}" || true;
         sudo podman inspect motorcade-keycloak --format "CapAdd={{'{{'}}json .HostConfig.CapAdd{{'}}'}}" || true;'
       changed_when: false
+      when: not ansible_check_mode

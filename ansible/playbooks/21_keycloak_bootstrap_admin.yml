@@ -7,5 +7,13 @@
     # IMPORTANT: Set these at runtime via --extra-vars or via AWS retrieval on host.
     # Do NOT commit real values.
     keycloak_bootstrap_enabled: true
-  roles:
-    - role: keycloak
+  pre_tasks:
+    - name: Note check-mode behavior
+      ansible.builtin.debug:
+        msg: "Check mode: skipping secret retrieval and dependent Keycloak tasks."
+      when: ansible_check_mode
+  tasks:
+    - name: Apply keycloak role
+      ansible.builtin.include_role:
+        name: keycloak
+      when: not ansible_check_mode
