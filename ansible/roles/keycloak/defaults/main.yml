@@ -19,6 +19,8 @@ keycloak_db_secret_arn: ""
 
 keycloak_hostname: ""
 keycloak_hostname_strict: true
+keycloak_proxy_headers: xforwarded
+keycloak_use_quadlet: false
 
 keycloak_runtime_dir: /run/motorcade/keycloak
 keycloak_audit_dir: /srv/motorcade/audit

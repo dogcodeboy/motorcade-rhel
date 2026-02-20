@@ -1,0 +1,24 @@
+[Unit]
+Description=Motorcade Keycloak (Quadlet)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image={{ keycloak_optimized_image }}
+ContainerName={{ keycloak_container_name }}
+Network={{ keycloak_network_name }}
+PublishPort={{ keycloak_bind_ip }}:{{ keycloak_bind_port }}:{{ keycloak_container_port }}
+ReadOnly=true
+Tmpfs=/run:rw,noexec,nosuid,nodev
+Tmpfs=/tmp:rw,noexec,nosuid,nodev
+Volume=/srv/motorcade/keycloak/data:/opt/keycloak/data:Z
+EnvironmentFile={{ keycloak_runtime_dir }}/keycloak.env
+PodmanArgs=--cap-drop=ALL --pids-limit 200 --memory 1g
+Exec=start --optimized --hostname {{ keycloak_hostname }} --http-enabled true --proxy-headers {{ keycloak_proxy_headers | default('xforwarded') }}
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

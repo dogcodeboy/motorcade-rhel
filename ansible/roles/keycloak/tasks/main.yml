@@ -302,6 +302,16 @@
             | list)
         ) }}"
       no_log: true
+
+    - name: Write runtime Keycloak env file for quadlet
+      ansible.builtin.copy:
+        dest: "{{ keycloak_runtime_dir }}/keycloak.env"
+        owner: root
+        group: root
+        mode: "0600"
+        content: "{{ keycloak_runtime_env_text ~ '\n' }}"
+      no_log: true
+      when: keycloak_use_quadlet | bool
   when: not ansible_check_mode
 
 - name: Build Keycloak once (kc.sh build with full runtime config)
@@ -328,6 +338,7 @@
   register: kc_build
   changed_when: kc_build.rc == 0
   failed_when: kc_build.rc != 0
+  when: not keycloak_use_quadlet | bool
 
 
 
@@ -338,6 +349,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: not keycloak_use_quadlet | bool
 
 - name: Check whether Keycloak first start is complete
   ansible.builtin.stat:
@@ -386,6 +398,47 @@
       when: keycloak_optimized_image_exists.rc != 0
       changed_when: true
 
+- name: Ensure quadlet directory exists
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: keycloak_use_quadlet | bool
+
+- name: Render Keycloak quadlet definition
+  ansible.builtin.template:
+    src: motorcade-keycloak.container.j2
+    dest: "/etc/containers/systemd/{{ keycloak_container_name }}.container"
+    owner: root
+    group: root
+    mode: "0644"
+  when: keycloak_use_quadlet | bool
+
+- name: Remove existing standalone Keycloak container before quadlet startup
+  ansible.builtin.command:
+    argv:
+      - "{{ keycloak_podman_bin }}"
+      - rm
+      - -f
+      - "{{ keycloak_container_name }}"
+  changed_when: false
+  failed_when: false
+  when: keycloak_use_quadlet | bool
+
+- name: Reload systemd daemon after quadlet render
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: keycloak_use_quadlet | bool
+
+- name: Enable and start Keycloak quadlet service
+  ansible.builtin.systemd:
+    name: "{{ keycloak_container_name }}.service"
+    enabled: true
+    state: started
+  when: keycloak_use_quadlet | bool
+
 
 - name: Create Keycloak container (first start bootstrap, no optimized)
   ansible.builtin.command:
@@ -422,6 +475,7 @@
   when:
     - keycloak_container_exists.rc != 0
     - not keycloak_first_start_marker.stat.exists
+    - not keycloak_use_quadlet | bool
 
 - name: Wait for Keycloak HTTP to be reachable on first start
   ansible.builtin.wait_for:
@@ -429,7 +483,9 @@
     port: 8081
     delay: 2
     timeout: 180
-  when: not keycloak_first_start_marker.stat.exists
+  when:
+    - not keycloak_first_start_marker.stat.exists
+    - not keycloak_use_quadlet | bool
 
 - name: Stop Keycloak container after first start bootstrap
   ansible.builtin.command:
@@ -441,14 +497,18 @@
       - "{{ keycloak_container_name }}"
   changed_when: true
   failed_when: false
-  when: not keycloak_first_start_marker.stat.exists
+  when:
+    - not keycloak_first_start_marker.stat.exists
+    - not keycloak_use_quadlet | bool
 
 - name: Remove bootstrap container before optimized recreate
   ansible.builtin.command:
     cmd: "{{ keycloak_podman_bin }} rm -f {{ keycloak_container_name }}"
   changed_when: true
   failed_when: false
-  when: not keycloak_first_start_marker.stat.exists
+  when:
+    - not keycloak_first_start_marker.stat.exists
+    - not keycloak_use_quadlet | bool
 
 - name: Mark Keycloak first start complete
   ansible.builtin.file:
@@ -457,7 +517,9 @@
     owner: root
     group: root
     mode: "0644"
-  when: not keycloak_first_start_marker.stat.exists
+  when:
+    - not keycloak_first_start_marker.stat.exists
+    - not keycloak_use_quadlet | bool
 
 - name: Refresh Keycloak first-start marker state
   ansible.builtin.stat:
@@ -494,6 +556,7 @@
   when:
     - keycloak_container_exists.rc != 0
     - keycloak_first_start_marker.stat.exists
+    - not keycloak_use_quadlet | bool
 
 - name: Capture Keycloak audit artifacts
   ansible.builtin.shell: |
