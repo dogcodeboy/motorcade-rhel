@@ -6,6 +6,7 @@ After=network-online.target
 [Container]
 Image={{ motorcade_nginx_image }}
 ContainerName={{ nginx_container_name }}
+Network={{ nginx_network_name }}
 PublishPort={{ motorcade_nginx_bind_http }}:{{ motorcade_nginx_container_http }}
 PublishPort={{ motorcade_nginx_bind_https }}:{{ motorcade_nginx_container_https }}
 UserNS=host

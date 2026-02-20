@@ -3,6 +3,7 @@
 motorcade_nginx_image: "docker.io/library/nginx:1.27.4"
 nginx_container_name: "motorcade-nginx"
 nginx_use_quadlet: false
+nginx_network_name: "motorcade-core"
 
 # Host bind ports
 motorcade_nginx_bind_http: "0.0.0.0:80"
@@ -21,7 +22,9 @@ motorcade_nginx_tls_cert_dir: "/etc/pki/tls/motorcade"
 motorcade_nginx_domains: []
 motorcade_nginx_vhosts: []
 motorcade_nginx_proxy_upstreams: {}
-motorcade_nginx_keycloak_upstream: "http://127.0.0.1:8081"
+motorcade_nginx_sso_upstream: "http://motorcade-keycloak:8080"
+# Backward-compatible alias for older inventory overrides.
+motorcade_nginx_keycloak_upstream: "{{ motorcade_nginx_sso_upstream }}"
 motorcade_nginx_static_root: ""
 
 # Optional bootstrap for non-production environments.
