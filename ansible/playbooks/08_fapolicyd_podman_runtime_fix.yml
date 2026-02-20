@@ -34,6 +34,10 @@
         name: podman
         state: present
 
+    - name: Apply Podman API hardening defaults
+      ansible.builtin.include_role:
+        name: podman_api_hardening
+
     - name: Check if crun exists
       ansible.builtin.stat:
         path: "{{ motorcade_crun_bin }}"

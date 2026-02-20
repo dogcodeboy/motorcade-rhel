@@ -1,0 +1,23 @@
+---
+- name: Gather service facts for Podman API hardening
+  ansible.builtin.service_facts:
+
+- name: Disable Podman API socket (STIG posture)
+  ansible.builtin.systemd:
+    name: podman.socket
+    enabled: false
+    state: stopped
+  when:
+    - not motorcade_podman_api_enabled | bool
+    - "'podman.socket' in ansible_facts.services"
+  become: true
+
+- name: Disable Podman API service (STIG posture)
+  ansible.builtin.systemd:
+    name: podman.service
+    enabled: false
+    state: stopped
+  when:
+    - not motorcade_podman_api_enabled | bool
+    - "'podman.service' in ansible_facts.services"
+  become: true
