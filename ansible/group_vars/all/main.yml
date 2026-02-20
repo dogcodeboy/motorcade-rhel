@@ -13,3 +13,5 @@ keycloak_hostname: ""
 
 podman_bin_candidates:
   - /usr/bin/podman
+
+motorcade_podman_api_enabled: false
