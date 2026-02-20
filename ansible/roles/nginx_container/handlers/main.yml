@@ -1,0 +1,6 @@
+---
+- name: Restart motorcade-nginx (quadlet)
+  ansible.builtin.systemd:
+    name: "{{ nginx_container_name }}.service"
+    state: restarted
+  when: nginx_use_quadlet | bool

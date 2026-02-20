@@ -163,6 +163,7 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart motorcade-nginx (quadlet)
 
 - name: Render snippets
   ansible.builtin.template:
@@ -174,6 +175,7 @@
   loop:
     - { src: "snippets/ssl_params.conf.j2", dest: "ssl_params.conf" }
     - { src: "snippets/security_headers.conf.j2", dest: "security_headers.conf" }
+  notify: Restart motorcade-nginx (quadlet)
 
 - name: Build expected vhost filenames
   ansible.builtin.set_fact:
@@ -203,6 +205,7 @@
     group: root
     mode: "0644"
   loop: "{{ motorcade_nginx_effective_vhosts }}"
+  notify: Restart motorcade-nginx (quadlet)
 
 - name: Ensure Quadlet directory exists
   ansible.builtin.file:
@@ -220,6 +223,7 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart motorcade-nginx (quadlet)
   when: nginx_use_quadlet | bool
 
 - name: Remove existing nginx container before Quadlet start
