@@ -17,3 +17,4 @@ motorcade_nginx_static_root: ""
 
 keycloak_hostname: "https://sso-staging.motorcade.vip"
 keycloak_proxy_headers: "xforwarded"
+keycloak_use_quadlet: true
