@@ -259,6 +259,7 @@
       -v /etc/motorcade/nginx/security_headers.conf:/etc/nginx/snippets/security_headers.conf:ro,Z
       -v /etc/motorcade/nginx/conf.d:/etc/nginx/conf.d:ro,Z
       -v {{ motorcade_nginx_tls_cert_dir }}:/etc/nginx/certs:ro,Z
+      {{ ('-v ' ~ motorcade_nginx_static_root ~ ':' ~ motorcade_nginx_static_root ~ ':Z') if (motorcade_nginx_static_root | default('') | length > 0) else '' }}
       {{ motorcade_nginx_image }}
   register: nginx_run
   changed_when: true

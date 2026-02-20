@@ -28,7 +28,11 @@ server {
     proxy_send_timeout 60s;
   }
   {% else %}
-  {% if item.root is defined and item.root | length > 0 %}
+  {% if item.server_name == 'motorcade.vip' and (motorcade_nginx_static_root | default('') | length > 0) %}
+  root {{ motorcade_nginx_static_root }}/current;
+  index index.html;
+  location / { try_files $uri $uri/ /index.html =404; }
+  {% elif item.root is defined and item.root | length > 0 %}
   root {{ item.root }};
   location / { try_files $uri $uri/ =404; }
   {% else %}

@@ -15,6 +15,7 @@ motorcade_nginx_domains:
   - sso.motorcade.vip
   - admin.motorcade.vip
   - mcp.motorcade.vip
+motorcade_nginx_static_root: "/var/www/motorcade-site"
 
 keycloak_bind_host: 127.0.0.1
 keycloak_http_port: 8080
