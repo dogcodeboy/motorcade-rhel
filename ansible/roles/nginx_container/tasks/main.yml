@@ -191,16 +191,54 @@
     mode: "0644"
   loop: "{{ motorcade_nginx_effective_vhosts }}"
 
-- name: Remove existing nginx container (idempotent recreate)
+- name: Ensure Quadlet directory exists
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: nginx_use_quadlet | bool
+
+- name: Render nginx Quadlet container file
+  ansible.builtin.template:
+    src: motorcade-nginx.container.j2
+    dest: "/etc/containers/systemd/{{ nginx_container_name }}.container"
+    owner: root
+    group: root
+    mode: "0644"
+  when: nginx_use_quadlet | bool
+
+- name: Remove existing nginx container before Quadlet start
   ansible.builtin.command:
-    cmd: "{{ podman_bin }} rm -f motorcade-nginx"
+    cmd: "{{ podman_bin }} rm -f {{ nginx_container_name }}"
   failed_when: false
   changed_when: false
+  when: nginx_use_quadlet | bool
+
+- name: Reload systemd units for Quadlet
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: nginx_use_quadlet | bool
+
+- name: Enable and start nginx Quadlet service
+  ansible.builtin.systemd:
+    name: "{{ nginx_container_name }}.service"
+    enabled: true
+    state: started
+  when: nginx_use_quadlet | bool
+
+- name: Remove existing nginx container (idempotent recreate)
+  ansible.builtin.command:
+    cmd: "{{ podman_bin }} rm -f {{ nginx_container_name }}"
+  failed_when: false
+  changed_when: false
+  when: not nginx_use_quadlet | bool
 
 - name: Run nginx container (host networking binds 80/443)
   ansible.builtin.command:
     cmd: >-
-      {{ podman_bin }} run --cap-add=SETGID --cap-add=SETUID --replace --cap-add=NET_BIND_SERVICE --cap-add=CHOWN --userns=host -v /srv/motorcade/nginx/cache:/var/cache/nginx:Z -v /srv/motorcade/nginx/run:/var/run:Z -v /srv/motorcade/nginx/tmp:/tmp:Z -d --name motorcade-nginx
+      {{ podman_bin }} run --cap-add=SETGID --cap-add=SETUID --replace --cap-add=NET_BIND_SERVICE --cap-add=CHOWN --userns=host -v /srv/motorcade/nginx/cache:/var/cache/nginx:Z -v /srv/motorcade/nginx/run:/var/run:Z -v /srv/motorcade/nginx/tmp:/tmp:Z -d --name {{ nginx_container_name }}
       -p {{ motorcade_nginx_bind_http }}:{{ motorcade_nginx_container_http }}
       -p {{ motorcade_nginx_bind_https }}:{{ motorcade_nginx_container_https }}
       -v /etc/motorcade/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
@@ -211,12 +249,13 @@
       {{ motorcade_nginx_image }}
   register: nginx_run
   changed_when: true
+  when: not nginx_use_quadlet | bool
 
 - name: Capture nginx image + container inspect for audit
   ansible.builtin.shell: |
     set -euo pipefail
     {{ podman_bin }} image inspect {{ motorcade_nginx_image }} > {{ motorcade_audit_dir }}/nginx_image_inspect.json
-    {{ podman_bin }} inspect motorcade-nginx > {{ motorcade_audit_dir }}/nginx_container_inspect.json
+    {{ podman_bin }} inspect {{ nginx_container_name }} > {{ motorcade_audit_dir }}/nginx_container_inspect.json
   changed_when: true
 
 - name: Health check nginx inside container via host port 80

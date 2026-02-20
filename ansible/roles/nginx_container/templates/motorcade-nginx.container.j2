@@ -1,0 +1,28 @@
+[Unit]
+Description=Motorcade Nginx (Quadlet)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image={{ motorcade_nginx_image }}
+ContainerName={{ nginx_container_name }}
+PublishPort={{ motorcade_nginx_bind_http }}:{{ motorcade_nginx_container_http }}
+PublishPort={{ motorcade_nginx_bind_https }}:{{ motorcade_nginx_container_https }}
+UserNS=host
+ReadOnly=true
+Volume=/srv/motorcade/nginx/cache:/var/cache/nginx:Z
+Volume=/srv/motorcade/nginx/run:/var/run:Z
+Volume=/srv/motorcade/nginx/tmp:/tmp:Z
+Volume=/etc/motorcade/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+Volume=/etc/motorcade/nginx/ssl_params.conf:/etc/nginx/snippets/ssl_params.conf:ro,Z
+Volume=/etc/motorcade/nginx/security_headers.conf:/etc/nginx/snippets/security_headers.conf:ro,Z
+Volume=/etc/motorcade/nginx/conf.d:/etc/nginx/conf.d:ro,Z
+Volume={{ motorcade_nginx_tls_cert_dir }}:/etc/nginx/certs:ro,Z
+PodmanArgs=--replace --cap-drop=ALL --cap-add=SETGID --cap-add=SETUID --cap-add=NET_BIND_SERVICE --cap-add=CHOWN
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

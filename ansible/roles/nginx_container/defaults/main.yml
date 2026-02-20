@@ -1,6 +1,8 @@
 ---
 # NGINX container image (pin to a known tag; later we’ll pin by digest)
 motorcade_nginx_image: "docker.io/library/nginx:1.27.4"
+nginx_container_name: "motorcade-nginx"
+nginx_use_quadlet: false
 
 # Host bind ports
 motorcade_nginx_bind_http: "0.0.0.0:80"
