@@ -17,6 +17,7 @@ motorcade_nginx_domains:
 
 keycloak_bind_host: 127.0.0.1
 keycloak_http_port: 8080
+keycloak_use_quadlet: true
 
 # Keycloak RDS / Secrets Manager wiring for prod
 keycloak_db_host: "motorcade-prod-db-01.cdcs4864s0l0.us-east-2.rds.amazonaws.com"
