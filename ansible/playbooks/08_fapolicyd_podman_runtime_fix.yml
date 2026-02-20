@@ -34,17 +34,6 @@
         name: podman
         state: present
 
-    - name: Disable Podman API units by default
-      ansible.builtin.systemd:
-        name: "{{ item }}"
-        state: stopped
-        enabled: false
-      loop:
-        - podman.socket
-        - podman.service
-      when: not (motorcade_podman_api_enabled | bool)
-      failed_when: false
-
     - name: Check if crun exists
       ansible.builtin.stat:
         path: "{{ motorcade_crun_bin }}"
