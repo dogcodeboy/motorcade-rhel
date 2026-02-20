@@ -1,9 +1,19 @@
 ---
+motorcade_nginx_selfsigned: true
+motorcade_nginx_selfsigned_days: 30
+
 motorcade_nginx_domains:
   - staging.motorcade.vip
   - sso-staging.motorcade.vip
   - admin-staging.motorcade.vip
   - mcp-staging.motorcade.vip
+
+motorcade_nginx_proxy_upstreams:
+  sso-staging.motorcade.vip: "http://127.0.0.1:8081"
+  mcp-staging.motorcade.vip: "http://127.0.0.1:7000"
+  admin-staging.motorcade.vip: "http://127.0.0.1:9000"
+
+motorcade_nginx_static_root: ""
 
 keycloak_hostname: "https://sso-staging.motorcade.vip"
 keycloak_proxy_headers: "xforwarded"
