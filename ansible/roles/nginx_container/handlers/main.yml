@@ -3,4 +3,5 @@
   ansible.builtin.systemd:
     name: "{{ nginx_container_name }}.service"
     state: restarted
+  become: true
   when: nginx_use_quadlet | bool
