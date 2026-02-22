@@ -258,6 +258,7 @@
       {{ podman_bin }} run --cap-add=SETGID --cap-add=SETUID --replace --cap-add=NET_BIND_SERVICE --cap-add=CHOWN --userns=host --network {{ nginx_network_name }} -v /srv/motorcade/nginx/cache:/var/cache/nginx:Z -v /srv/motorcade/nginx/run:/var/run:Z -v /srv/motorcade/nginx/tmp:/tmp:Z -d --name {{ nginx_container_name }}
       -p {{ motorcade_nginx_bind_http }}:{{ motorcade_nginx_container_http }}
       -p {{ motorcade_nginx_bind_https }}:{{ motorcade_nginx_container_https }}
+      -v /run/motorcade/nginx:/run/motorcade/nginx:ro,Z
       -v /etc/motorcade/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
       -v /etc/motorcade/nginx/ssl_params.conf:/etc/nginx/snippets/ssl_params.conf:ro,Z
       -v /etc/motorcade/nginx/security_headers.conf:/etc/nginx/snippets/security_headers.conf:ro,Z

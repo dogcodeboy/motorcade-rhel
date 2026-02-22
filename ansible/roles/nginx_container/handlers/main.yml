@@ -5,3 +5,9 @@
     state: restarted
   become: true
   when: nginx_use_quadlet | bool
+
+- name: Reload motorcade-nginx
+  ansible.builtin.command: "{{ podman_bin | default('/usr/bin/podman') }} exec {{ nginx_container_name }} nginx -s reload"
+  become: true
+  changed_when: false
+  failed_when: false
