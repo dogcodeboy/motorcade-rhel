@@ -16,6 +16,22 @@
     daemon_reload: true
   become: true
 
+- name: "LeadGen | derive ECR registry host from image ref"
+  ansible.builtin.set_fact:
+    leadgen_ecr_registry_host: "{{ (leadgen_image_ref | string).split('/')[0] }}"
+    leadgen_ecr_region: "{{ (leadgen_image_ref | regex_replace('^.*\\.ecr\\.([^.]+)\\.amazonaws\\.com.*$', '\\1')) | default('us-east-2') }}"
+  changed_when: false
+
+- name: "LeadGen | login to ECR for image pulls"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password --region "{{ leadgen_ecr_region }}" | podman login --username AWS --password-stdin "{{ leadgen_ecr_registry_host }}"
+  args:
+    executable: /bin/bash
+  become: true
+  changed_when: false
+  no_log: true
+
 - name: "LeadGen | enable and start"
   ansible.builtin.systemd:
     name: motorcade-leadgen.service
