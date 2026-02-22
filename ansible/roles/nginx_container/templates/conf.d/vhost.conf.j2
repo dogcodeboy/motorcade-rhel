@@ -20,7 +20,7 @@ server {
   location /healthz { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; }
   {% if item.server_name == leadgen_site_name %}
   location = {{ leadgen_intake_public_path | default('/api/lead-intake') }} {
-    if ($request_method != POST) { return 405; }
+    limit_except POST { return 405; }
 
     include /run/motorcade/nginx/leadgen_headers.conf;
 
