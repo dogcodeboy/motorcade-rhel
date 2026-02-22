@@ -1,0 +1,2 @@
+# LeadGen image pinned by digest (STIG-friendly, immutable)
+leadgen_image_ref: "703671899211.dkr.ecr.us-east-2.amazonaws.com/motorcade-leadgen@sha256:a01c3d31cbadb196734efadf4b958d0f9f34772446a0133278e9677bbd01c545"
