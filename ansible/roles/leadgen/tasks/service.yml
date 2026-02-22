@@ -11,6 +11,11 @@
     - systemd daemon-reload
     - restart leadgen
 
+- name: "LeadGen | reload systemd for quadlet units"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
 - name: "LeadGen | enable and start"
   ansible.builtin.systemd:
     name: motorcade-leadgen.service
