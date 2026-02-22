@@ -1,0 +1,23 @@
+[Unit]
+Description=Motorcade LeadGen API
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+# TODO: set image reference (registry/repo:tag)
+Image={{ leadgen_image_ref | default("REPLACE_ME_LEADGEN_IMAGE") }}
+ContainerName=motorcade-leadgen
+Network=host
+EnvFile=/run/motorcade/leadgen/leadgen.env
+# Recommended: limit privileges
+NoNewPrivileges=true
+# Basic health endpoint is /lead/health (curl handled in validation)
+# Log via journald by default
+
+[Service]
+Restart=always
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

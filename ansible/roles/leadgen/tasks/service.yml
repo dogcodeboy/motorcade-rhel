@@ -1,0 +1,19 @@
+---
+- name: "LeadGen | install quadlet unit"
+  ansible.builtin.template:
+    src: motorcade-leadgen.container.j2
+    dest: /etc/containers/systemd/motorcade-leadgen.container
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - systemd daemon-reload
+    - restart leadgen
+
+- name: "LeadGen | enable and start"
+  ansible.builtin.systemd:
+    name: motorcade-leadgen.service
+    state: started
+    enabled: true
+  become: true
