@@ -8,7 +8,7 @@ After=network-online.target
 Image={{ leadgen_image_ref | default("REPLACE_ME_LEADGEN_IMAGE") }}
 ContainerName=motorcade-leadgen
 Network=host
-EnvFile=/run/motorcade/leadgen/leadgen.env
+EnvironmentFile=/run/motorcade/leadgen/leadgen.env
 # Recommended: limit privileges
 NoNewPrivileges=true
 # Basic health endpoint is /lead/health (curl handled in validation)

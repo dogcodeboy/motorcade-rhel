@@ -2,8 +2,5 @@
 - name: "LeadGen | deploy (RHEL + RDS + AWS SM)"
   hosts: motorcade-prod-01
   become: true
-  vars:
-    # set in inventory later; placeholder here keeps playbook explicit
-    leadgen_image_ref: "REPLACE_ME_LEADGEN_IMAGE"
   roles:
     - leadgen
