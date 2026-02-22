@@ -1,0 +1,10 @@
+# LeadGen runtime settings
+leadgen_host: "127.0.0.1"
+leadgen_port: 8080
+
+# Nginx public intake endpoint
+leadgen_intake_public_path: "/api/lead-intake"
+
+# LeadGen internal API paths (from motorcade-leadgen)
+leadgen_intake_internal_path: "/lead/intake"
+leadgen_health_internal_path: "/lead/health"
