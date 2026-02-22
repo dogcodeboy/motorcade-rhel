@@ -1,0 +1,23 @@
+---
+- name: "LeadGen | install psql client (if needed)"
+  ansible.builtin.package:
+    name: postgresql
+    state: present
+  become: true
+
+- name: "LeadGen | apply schema to RDS"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    export PGPASSWORD="{{ leadgen_db_password }}"
+    psql \
+      --host="{{ leadgen_db_host }}" \
+      --port="{{ leadgen_db_port }}" \
+      --username="{{ leadgen_db_user }}" \
+      --dbname="{{ leadgen_db_name }}" \
+      --set=ON_ERROR_STOP=1 \
+      --file="{{ role_path }}/files/schema.sql"
+  args:
+    executable: /bin/bash
+  changed_when: false
+  no_log: true
+  become: true
