@@ -25,12 +25,12 @@
 - name: "LeadGen | login to ECR for image pulls"
   ansible.builtin.shell: |
     set -euo pipefail
-    aws ecr get-login-password --region "{{ leadgen_ecr_region }}" | podman login --username AWS --password-stdin "{{ leadgen_ecr_registry_host }}"
+    PASS="$(aws ecr get-login-password --region "{{ leadgen_ecr_region }}")"
+    printf "%s" "$PASS" | podman login --username AWS --password-stdin "{{ leadgen_ecr_registry_host }}"
   args:
     executable: /bin/bash
   become: true
   changed_when: false
-  no_log: true
 
 - name: "LeadGen | enable and start"
   ansible.builtin.systemd:
