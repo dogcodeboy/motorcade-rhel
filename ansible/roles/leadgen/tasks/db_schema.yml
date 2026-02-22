@@ -5,6 +5,15 @@
     state: present
   become: true
 
+- name: "LeadGen | stage schema SQL on host"
+  ansible.builtin.copy:
+    src: schema.sql
+    dest: /run/motorcade/leadgen/schema.sql
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+
 - name: "LeadGen | apply schema to RDS"
   ansible.builtin.command:
     argv:
@@ -14,7 +23,7 @@
       - "--username={{ leadgen_db_user }}"
       - "--dbname={{ leadgen_db_name }}"
       - "--set=ON_ERROR_STOP=1"
-      - "--file={{ role_path }}/files/schema.sql"
+      - "--file=/run/motorcade/leadgen/schema.sql"
   environment:
     PGPASSWORD: "{{ leadgen_db_password }}"
   changed_when: false
