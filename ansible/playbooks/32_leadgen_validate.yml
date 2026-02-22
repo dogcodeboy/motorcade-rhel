@@ -1,0 +1,17 @@
+---
+- name: "LeadGen | validate health + intake path"
+  hosts: motorcade-prod-01
+  become: true
+  tasks:
+    - name: "Check LeadGen health locally"
+      ansible.builtin.command: >
+        curl -fsS http://{{ leadgen_host }}:{{ leadgen_port }}{{ leadgen_health_internal_path }}
+      changed_when: false
+
+    - name: "POST test intake via nginx public path (should not require browser api key)"
+      ansible.builtin.command: >
+        curl -fsS -H "Host: motorcade.vip"
+        -H "Content-Type: application/json"
+        -X POST http://127.0.0.1{{ leadgen_intake_public_path }}
+        --data '{"email":"test@example.com","full_name":"Test User","service_type":"test","intake_type":"test","source_page":"validate"}'
+      changed_when: false
