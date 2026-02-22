@@ -1,0 +1,11 @@
+---
+- name: systemd daemon-reload
+  ansible.builtin.command: systemctl daemon-reload
+  become: true
+
+- name: restart leadgen
+  ansible.builtin.systemd:
+    name: motorcade-leadgen.service
+    state: restarted
+    enabled: true
+  become: true

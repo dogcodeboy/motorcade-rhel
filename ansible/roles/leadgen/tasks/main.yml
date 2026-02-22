@@ -1,0 +1,9 @@
+---
+- name: "LeadGen | include secrets + runtime env"
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: "LeadGen | apply RDS schema (idempotent)"
+  ansible.builtin.import_tasks: db_schema.yml
+
+- name: "LeadGen | install quadlet + start service"
+  ansible.builtin.import_tasks: service.yml
